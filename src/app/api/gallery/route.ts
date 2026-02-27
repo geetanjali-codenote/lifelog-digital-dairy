@@ -7,24 +7,37 @@ export async function GET(request: NextRequest) {
     const userId = await requireAuthUserId();
     const { searchParams } = new URL(request.url);
 
-    const mood = searchParams.get("mood");
     const tag = searchParams.get("tag");
-    const month = searchParams.get("month"); // format: "2026-02"
+    const filterDate = searchParams.get("date"); // "this_month", "this_year", "this_week", "all", or "YYYY-MM-DD"
     const page = parseInt(searchParams.get("page") || "1");
     const limit = Math.min(parseInt(searchParams.get("limit") || "30"), 60);
     const skip = (page - 1) * limit;
 
-    // Build where clause for entries that belong to this user and have attachments
     const entryWhere: Record<string, unknown> = { userId };
-    if (mood) entryWhere.mood = mood;
     if (tag) {
       entryWhere.entryTags = { some: { tag: { name: tag } } };
     }
-    if (month) {
-      const [year, mon] = month.split("-").map(Number);
-      const startDate = new Date(year, mon - 1, 1);
-      const endDate = new Date(year, mon, 1);
-      entryWhere.entryDate = { gte: startDate, lt: endDate };
+    if (filterDate && filterDate !== "all") {
+      const now = new Date();
+      if (filterDate === "this_year") {
+        entryWhere.entryDate = { gte: new Date(now.getFullYear(), 0, 1) };
+      } else if (filterDate === "this_month") {
+        entryWhere.entryDate = { gte: new Date(now.getFullYear(), now.getMonth(), 1) };
+      } else if (filterDate === "this_week") {
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
+        startOfWeek.setHours(0, 0, 0, 0);
+        entryWhere.entryDate = { gte: startOfWeek };
+      } else if (filterDate === "last_30_days") {
+        const last30 = new Date(now);
+        last30.setDate(now.getDate() - 30);
+        entryWhere.entryDate = { gte: last30 };
+      } else if (filterDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        const [year, month, day] = filterDate.split("-").map(Number);
+        const startDate = new Date(year, month - 1, day);
+        const endDate = new Date(year, month - 1, day + 1);
+        entryWhere.entryDate = { gte: startDate, lt: endDate };
+      }
     }
 
     // Count total attachments matching filters
@@ -39,7 +52,10 @@ export async function GET(request: NextRequest) {
       where: {
         entry: entryWhere,
       },
-      include: {
+      select: {
+        id: true,
+        fileUrl: true,
+        createdAt: true,
         entry: {
           select: {
             id: true,
@@ -78,32 +94,25 @@ export async function GET(request: NextRequest) {
       },
     }));
 
-    // Get available filters (moods, tags, months that have attachments)
-    const allEntryIdsWithAttachments = await prisma.attachment.findMany({
-      where: { entry: { userId } },
-      select: { entry: { select: { mood: true, entryDate: true, entryTags: { select: { tag: { select: { id: true, name: true } } } } } } },
-      distinct: ["entryId"],
+    // Get available tags
+    const tagsSet = await prisma.tag.findMany({
+      where: {
+        entryTags: {
+          some: {
+            entry: {
+              userId,
+              attachments: { some: {} }
+            }
+          }
+        }
+      },
+      select: { id: true, name: true }
     });
-
-    const moods = Array.from(new Set(allEntryIdsWithAttachments.map((a) => a.entry.mood)));
-    const tagsSet = new Map<string, { id: string; name: string }>();
-    const monthsSet = new Set<string>();
-
-    for (const a of allEntryIdsWithAttachments) {
-      const d = a.entry.entryDate;
-      const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      monthsSet.add(m);
-      for (const et of a.entry.entryTags) {
-        tagsSet.set(et.tag.id, { id: et.tag.id, name: et.tag.name });
-      }
-    }
 
     return NextResponse.json({
       media,
       filters: {
-        moods: moods.sort(),
-        tags: Array.from(tagsSet.values()).sort((a, b) => a.name.localeCompare(b.name)),
-        months: Array.from(monthsSet).sort().reverse(),
+        tags: tagsSet.sort((a, b) => a.name.localeCompare(b.name)),
       },
       pagination: {
         page,

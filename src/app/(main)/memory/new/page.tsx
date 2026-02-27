@@ -256,6 +256,7 @@ export default function NewEntryPage() {
                   </label>
                   <input
                     type="date"
+                    max={new Date().toISOString().split("T")[0]}
                     value={form.entryDate}
                     onChange={(e) => setForm({ ...form, entryDate: e.target.value })}
                     className={inputClass}
@@ -321,8 +322,8 @@ export default function NewEntryPage() {
                         setMoodEmoji(mood.emoji);
                       }}
                       className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-full border text-xs font-medium transition-all ${form.mood === mood.value
-                          ? "border-brand bg-brand-light/50 text-brand"
-                          : "border-gray-100 text-gray-500 hover:border-gray-200"
+                        ? "border-brand bg-brand-light/50 text-brand"
+                        : "border-gray-100 text-gray-500 hover:border-gray-200"
                         }`}
                     >
                       <span>{mood.emoji}</span>
@@ -589,8 +590,8 @@ export default function NewEntryPage() {
                       type="button"
                       onClick={() => toggleTag(tag.id)}
                       className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${form.tagIds.includes(tag.id)
-                          ? "bg-brand text-white border-brand"
-                          : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                        ? "bg-brand text-white border-brand"
+                        : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
                         }`}
                     >
                       {form.tagIds.includes(tag.id) && <span className="mr-1">✓</span>}

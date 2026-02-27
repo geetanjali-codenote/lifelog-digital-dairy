@@ -306,10 +306,10 @@ export default function TransactionsPage() {
                     <Calendar className="w-3 h-3" />
                     <span>From</span>
                   </div>
-                  <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                  <input type="date" max={new Date().toISOString().split("T")[0]} value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
                     className="px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20" />
                   <span className="text-xs text-gray-400">to</span>
-                  <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                  <input type="date" max={new Date().toISOString().split("T")[0]} value={dateTo} onChange={(e) => setDateTo(e.target.value)}
                     className="px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20" />
                 </div>
                 {hasFilters && (
@@ -331,9 +331,8 @@ export default function TransactionsPage() {
               {transactions.map((txn) => (
                 <StaggeredItem key={txn.id}>
                   <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex items-center space-x-4 hover:border-gray-200 transition-all group">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                      txn.type === "income" ? "bg-emerald-50 text-emerald-500" : "bg-red-50 text-red-500"
-                    }`}>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${txn.type === "income" ? "bg-emerald-50 text-emerald-500" : "bg-red-50 text-red-500"
+                      }`}>
                       {txn.type === "income" ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -554,7 +553,7 @@ export default function TransactionsPage() {
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-500 block mb-1">Date</label>
-                  <input type="date" value={addForm.date} onChange={(e) => setAddForm({ ...addForm, date: e.target.value })}
+                  <input type="date" max={new Date().toISOString().split("T")[0]} value={addForm.date} onChange={(e) => setAddForm({ ...addForm, date: e.target.value })}
                     className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand text-gray-900" />
                 </div>
               </div>

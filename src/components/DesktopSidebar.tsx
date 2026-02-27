@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, Book, BarChart3, User, Plus, BookOpen, LogOut, Bell, Sparkles, Settings, Sun, Chrome as Moon, Wallet, Image as ImageIcon } from "lucide-react";
+import { Home, Book, BarChart3, User, Plus, BookOpen, LogOut, Bell, Sparkles, Wallet, Image as ImageIcon } from "lucide-react";
 import { useSession, signOut } from "next-auth/react";
 import clsx from "clsx";
 import { motion } from "framer-motion";
@@ -43,13 +43,13 @@ export function DesktopSidebar() {
   const userImage = session?.user?.image;
 
   return (
-    <aside className="hidden lg:flex flex-col fixed left-0 top-0 bottom-0 w-[260px] bg-white dark:bg-sidebar-bg border-r border-gray-100 z-40 px-4 py-6">
+    <aside className="hidden lg:flex flex-col fixed left-0 top-0 bottom-0 w-[260px] bg-white dark:bg-sidebar-bg border-r border-gray-100 dark:border-gray-800 z-40 px-4 py-6">
       {/* Logo */}
       <div className="flex items-center space-x-3 px-3 mb-8">
         <div className="w-10 h-10 bg-brand rounded-xl flex items-center justify-center shadow-sm shadow-brand/20">
           <BookOpen className="w-6 h-6 text-white" strokeWidth={2.5} />
         </div>
-        <span className="font-bold text-gray-900 text-xl tracking-tight">LifeLog</span>
+        <span className="font-bold text-gray-900 dark:text-white text-xl tracking-tight">LifeLog</span>
       </div>
 
       {/* New Memory Button */}
@@ -79,7 +79,7 @@ export function DesktopSidebar() {
                 "flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 relative",
                 isActive
                   ? "bg-brand-light text-brand"
-                  : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
+                  : "text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-gray-200"
               )}
             >
               <IconComponent className="w-5 h-5" strokeWidth={isActive ? 2.5 : 2} />
@@ -102,11 +102,11 @@ export function DesktopSidebar() {
       </nav>
 
       {/* User Section */}
-      <div className="mt-auto border-t border-gray-100 pt-4 pb-2 space-y-4">
+      <div className="mt-auto border-t border-gray-100 dark:border-gray-800 pt-4 pb-2 space-y-4">
         <div className="flex items-center justify-between px-3">
           <ThemeToggle />
         </div>
-        <Link href="/profile" className="flex items-center space-x-3 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors group">
+        <Link href="/profile" className="flex items-center space-x-3 px-3 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
           <div className="w-9 h-9 bg-brand-light rounded-full flex items-center justify-center border border-brand/20 overflow-hidden shrink-0">
             {userImage ? (
               <img src={userImage} alt="Avatar" className="w-full h-full object-cover" />
@@ -117,15 +117,15 @@ export function DesktopSidebar() {
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-900 group-hover:text-brand transition-colors truncate">{userName}</p>
-            <p className="text-xs text-gray-500 truncate">{userEmail}</p>
+            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 group-hover:text-brand transition-colors truncate">{userName}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{userEmail}</p>
           </div>
           <button
             onClick={(e) => {
               e.preventDefault();
               handleLogout();
             }}
-            className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors shrink-0"
+            className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 text-gray-400 hover:text-red-500 transition-colors shrink-0"
             title="Sign Out"
           >
             <LogOut className="w-4 h-4" />

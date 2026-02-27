@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronLeft, Filter, Sparkles, BarChart2, MapPin, Smile, CalendarDays, Star, PlayCircle, Image as ImageIcon, Video, Loader2 } from "lucide-react";
 import { FadeIn } from "@/components/motion/FadeIn";
 import toast from "react-hot-toast";
+import { RecapModal } from "@/components/RecapModal";
 
 interface AnalyticsData {
   totalMemories: number;
@@ -17,6 +18,7 @@ interface AnalyticsData {
 
 export default function HighlightAnalyticsPage() {
   const [showFilters, setShowFilters] = useState(false);
+  const [showRecap, setShowRecap] = useState(false);
   const [activeTab, setActiveTab] = useState("Overview");
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -253,7 +255,7 @@ export default function HighlightAnalyticsPage() {
                   <h2 className="text-2xl font-bold mb-2">Relive Your Year</h2>
                   <p className="text-brand-light/80 text-sm max-w-sm mb-4">You've logged {mockAnalytics.totalMemories} memories this year. Watch a personalized recap of your best moments in 2025.</p>
                   <button
-                    onClick={() => toast("Your personalized recap video is being generated in the background. We'll notify you when it's ready!", { icon: "🎬" })}
+                    onClick={() => setShowRecap(true)}
                     className="inline-flex items-center space-x-2 bg-white text-brand px-5 py-2.5 rounded-full font-bold shadow-md hover:scale-105 transition-transform"
                   >
                     <PlayCircle className="w-5 h-5 fill-brand text-white" />
@@ -359,6 +361,13 @@ export default function HighlightAnalyticsPage() {
 
         </div>
       </div>
+
+      {showRecap && (
+        <RecapModal
+          onClose={() => setShowRecap(false)}
+          filters={{ mood: selectedMoods[0] }}
+        />
+      )}
     </div>
   );
 }

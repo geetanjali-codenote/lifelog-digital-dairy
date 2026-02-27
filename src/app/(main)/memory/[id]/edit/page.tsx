@@ -275,7 +275,7 @@ export default function EditEntryPage() {
                   <label className="text-sm font-medium text-gray-700 block mb-2">
                     Date <span className="text-red-400">*</span>
                   </label>
-                  <input type="date" value={form.entryDate} onChange={(e) => setForm({ ...form, entryDate: e.target.value })} className={inputClass} />
+                  <input type="date" max={new Date().toISOString().split("T")[0]} value={form.entryDate} onChange={(e) => setForm({ ...form, entryDate: e.target.value })} className={inputClass} />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700 block mb-2">Title</label>
@@ -324,8 +324,8 @@ export default function EditEntryPage() {
                       type="button"
                       onClick={() => { setForm({ ...form, mood: mood.value }); setMoodEmoji(mood.emoji); }}
                       className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-full border text-xs font-medium transition-all ${form.mood === mood.value
-                          ? "border-brand bg-brand-light/50 text-brand"
-                          : "border-gray-100 text-gray-500 hover:border-gray-200"
+                        ? "border-brand bg-brand-light/50 text-brand"
+                        : "border-gray-100 text-gray-500 hover:border-gray-200"
                         }`}
                     >
                       <span>{mood.emoji}</span>

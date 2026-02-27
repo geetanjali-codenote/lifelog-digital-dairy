@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
   ChevronLeft, Image as ImageIcon, LayoutGrid, Columns, Plus, X,
-  CalendarDays, Tag as TagIcon, Loader2, UploadCloud, Trash2
+  CalendarDays, Tag as TagIcon, Loader2, UploadCloud, Trash2, CheckCircle2, Circle
 } from "lucide-react";
 import { FadeIn } from "@/components/motion/FadeIn";
 import { StaggeredList, StaggeredItem } from "@/components/motion/StaggeredList";
@@ -35,20 +35,6 @@ interface TagData {
   color: string | null;
 }
 
-const moodEmoji: Record<string, string> = {
-  happy: "😊", joyful: "😊", excited: "🤩", peaceful: "😌", calm: "😌",
-  grateful: "🙏", loved: "🥰", productive: "💪", creative: "🎨",
-  sad: "😢", anxious: "😰", stressed: "😫", angry: "😤",
-  tired: "😴", neutral: "😐", reflective: "🤔", hopeful: "🌟",
-};
-
-const quickMoods = [
-  { value: "happy", emoji: "😊" }, { value: "excited", emoji: "🤩" },
-  { value: "peaceful", emoji: "😌" }, { value: "grateful", emoji: "🙏" },
-  { value: "loved", emoji: "🥰" }, { value: "creative", emoji: "🎨" },
-  { value: "reflective", emoji: "🤔" }, { value: "neutral", emoji: "😐" },
-];
-
 function formatMonth(monthStr: string) {
   const [year, month] = monthStr.split("-");
   const date = new Date(parseInt(year), parseInt(month) - 1);
@@ -69,9 +55,13 @@ export default function GalleryPage() {
   const [total, setTotal] = useState(0);
 
   // Active filters
-  const [moodFilter, setMoodFilter] = useState("");
   const [tagFilter, setTagFilter] = useState("");
-  const [monthFilter, setMonthFilter] = useState("");
+  const [dateFilter, setDateFilter] = useState("all");
+
+  // Selection
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState(false);
 
   // Lightbox
   const [lightboxItem, setLightboxItem] = useState<MediaItem | null>(null);
@@ -81,7 +71,6 @@ export default function GalleryPage() {
   const [uploadUrls, setUploadUrls] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [uploadMood, setUploadMood] = useState("happy");
   const [uploadDate, setUploadDate] = useState(new Date().toISOString().split("T")[0]);
   const [uploadTagIds, setUploadTagIds] = useState<string[]>([]);
   const [allTags, setAllTags] = useState<TagData[]>([]);
@@ -90,9 +79,8 @@ export default function GalleryPage() {
   const fetchGallery = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams({ page: String(page), limit: "30" });
-    if (moodFilter) params.set("mood", moodFilter);
     if (tagFilter) params.set("tag", tagFilter);
-    if (monthFilter) params.set("month", monthFilter);
+    if (dateFilter && dateFilter !== "all") params.set("date", dateFilter);
 
     try {
       const res = await fetch(`/api/gallery?${params}`);
@@ -102,14 +90,14 @@ export default function GalleryPage() {
       }
       const data = await res.json();
       setMedia(data.media || []);
-      setFilters(data.filters || { moods: [], tags: [], months: [] });
+      setFilters(data.filters || { moods: [], tags: [] });
       setTotalPages(data.pagination?.totalPages || 1);
       setTotal(data.pagination?.total || 0);
     } catch {
       // ignore
     }
     setLoading(false);
-  }, [page, moodFilter, tagFilter, monthFilter]);
+  }, [page, tagFilter, dateFilter]);
 
   useEffect(() => {
     fetchGallery();
@@ -117,21 +105,20 @@ export default function GalleryPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [moodFilter, tagFilter, monthFilter]);
+  }, [tagFilter, dateFilter]);
 
   // Fetch tags for upload modal
   useEffect(() => {
-    fetch("/api/tags").then((r) => r.json()).then(setAllTags).catch(() => {});
+    fetch("/api/tags").then((r) => r.json()).then(setAllTags).catch(() => { });
   }, []);
 
   const clearFilters = () => {
-    setMoodFilter("");
     setTagFilter("");
-    setMonthFilter("");
+    setDateFilter("all");
     setPage(1);
   };
 
-  const hasFilters = moodFilter || tagFilter || monthFilter;
+  const hasFilters = tagFilter || (dateFilter !== "all");
 
   // Handle file selection for upload
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -169,7 +156,6 @@ export default function GalleryPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           urls: uploadUrls,
-          mood: uploadMood,
           entryDate: uploadDate,
           tagIds: uploadTagIds.length > 0 ? uploadTagIds : undefined,
         }),
@@ -183,7 +169,6 @@ export default function GalleryPage() {
       toast.success(`${uploadUrls.length} file${uploadUrls.length > 1 ? "s" : ""} added to gallery!`);
       setShowUpload(false);
       setUploadUrls([]);
-      setUploadMood("happy");
       setUploadDate(new Date().toISOString().split("T")[0]);
       setUploadTagIds([]);
       fetchGallery();
@@ -195,7 +180,6 @@ export default function GalleryPage() {
 
   const openUploadModal = () => {
     setUploadUrls([]);
-    setUploadMood("happy");
     setUploadDate(new Date().toISOString().split("T")[0]);
     setUploadTagIds([]);
     setShowUpload(true);
@@ -250,13 +234,63 @@ export default function GalleryPage() {
               <LayoutGrid className="w-5 h-5" />
             </button>
           </div>
-          <button
-            onClick={openUploadModal}
-            className="flex items-center space-x-2 bg-brand text-white px-4 py-2.5 rounded-xl font-semibold shadow-md shadow-brand/20 hover:bg-brand-dark transition-all"
-          >
-            <UploadCloud className="w-5 h-5" />
-            <span>Upload</span>
-          </button>
+          {selectionMode ? (
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => {
+                  setSelectionMode(false);
+                  setSelectedIds([]);
+                }}
+                className="px-4 py-2 bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-gray-300 rounded-xl font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={selectedIds.length === 0 || deleting}
+                onClick={async () => {
+                  try {
+                    setDeleting(true);
+                    const res = await fetch("/api/gallery/delete", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ mediaIds: selectedIds }),
+                    });
+                    if (res.ok) {
+                      toast.success(`Deleted ${selectedIds.length} items`);
+                      setSelectionMode(false);
+                      setSelectedIds([]);
+                      fetchGallery();
+                    } else {
+                      toast.error("Failed to delete items");
+                    }
+                  } catch {
+                    toast.error("An error occurred");
+                  }
+                  setDeleting(false);
+                }}
+                className="flex items-center space-x-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2.5 rounded-xl font-semibold shadow-md transition-all disabled:opacity-50"
+              >
+                {deleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+                <span>Delete {selectedIds.length > 0 && `(${selectedIds.length})`}</span>
+              </button>
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={() => setSelectionMode(true)}
+                className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-white/10 dark:hover:bg-white/20 dark:text-gray-300 rounded-xl font-semibold transition-all"
+              >
+                Select
+              </button>
+              <button
+                onClick={openUploadModal}
+                className="flex items-center space-x-2 bg-brand text-white px-4 py-2.5 rounded-xl font-semibold shadow-md shadow-brand/20 hover:bg-brand-dark transition-all"
+              >
+                <UploadCloud className="w-5 h-5" />
+                <span>Upload</span>
+              </button>
+            </>
+          )}
         </div>
       </FadeIn>
 
@@ -280,64 +314,48 @@ export default function GalleryPage() {
       </div>
 
       {/* Filter Bar */}
-      {(filters.moods.length > 0 || filters.tags.length > 0 || filters.months.length > 0) && (
-        <FadeIn className="mb-6 space-y-3">
-          {filters.months.length > 0 && (
-            <div className="flex items-center space-x-2 overflow-x-auto pb-1">
-              <CalendarDays className="w-4 h-4 text-gray-400 shrink-0" />
-              <button
-                onClick={() => setMonthFilter("")}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium border whitespace-nowrap transition-all ${!monthFilter ? "bg-brand text-white border-brand" : "bg-white dark:bg-white/5 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-white/10"}`}
-              >
-                All Time
-              </button>
-              {filters.months.map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setMonthFilter(monthFilter === m ? "" : m)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium border whitespace-nowrap transition-all ${monthFilter === m ? "bg-brand text-white border-brand" : "bg-white dark:bg-white/5 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-white/10"}`}
-                >
-                  {formatMonth(m)}
-                </button>
-              ))}
-            </div>
-          )}
-          {filters.moods.length > 0 && (
-            <div className="flex items-center space-x-2 overflow-x-auto pb-1">
-              <span className="text-sm shrink-0">😊</span>
-              {filters.moods.map((mood) => (
-                <button
-                  key={mood}
-                  onClick={() => setMoodFilter(moodFilter === mood ? "" : mood)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium border whitespace-nowrap transition-all ${moodFilter === mood ? "bg-purple-500 text-white border-purple-500" : "bg-white dark:bg-white/5 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-white/10"}`}
-                >
-                  {moodEmoji[mood] || "😊"} {mood}
-                </button>
-              ))}
-            </div>
-          )}
-          {filters.tags.length > 0 && (
-            <div className="flex items-center space-x-2 overflow-x-auto pb-1">
-              <TagIcon className="w-4 h-4 text-gray-400 shrink-0" />
-              {filters.tags.map((tag) => (
-                <button
-                  key={tag.id}
-                  onClick={() => setTagFilter(tagFilter === tag.name ? "" : tag.name)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium border whitespace-nowrap transition-all ${tagFilter === tag.name ? "bg-brand text-white border-brand" : "bg-white dark:bg-white/5 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-white/10"}`}
-                >
-                  {tag.name}
-                </button>
-              ))}
-            </div>
-          )}
-          {hasFilters && (
-            <button onClick={clearFilters} className="flex items-center space-x-1 text-xs text-brand font-medium hover:underline">
-              <X className="w-3 h-3" />
-              <span>Clear all filters</span>
+      <FadeIn className="mb-6 space-y-3">
+        <div className="flex items-center space-x-2 pb-1 relative">
+          <CalendarDays className="w-4 h-4 text-gray-400 shrink-0" />
+          <select
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            className="px-3 py-1.5 rounded-full text-xs font-medium border bg-white dark:bg-white/5 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-white/10 outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
+          >
+            <option value="all">All Time</option>
+            <option value="this_week">This Week</option>
+            <option value="this_month">This Month</option>
+            <option value="last_30_days">Last 30 Days</option>
+            <option value="this_year">This Year</option>
+          </select>
+          {dateFilter !== "all" && (
+            <button onClick={() => setDateFilter("all")} className="px-3 py-1.5 rounded-full text-xs font-medium border bg-white dark:bg-white/5 text-gray-600 border-gray-200 hover:bg-gray-50 flex items-center">
+              <X className="w-3 h-3 mr-1" /> Clear Date
             </button>
           )}
-        </FadeIn>
-      )}
+        </div>
+
+        {filters.tags && filters.tags.length > 0 && (
+          <div className="flex items-center space-x-2 overflow-x-auto pb-1">
+            <TagIcon className="w-4 h-4 text-gray-400 shrink-0" />
+            {filters.tags.map((tag) => (
+              <button
+                key={tag.id}
+                onClick={() => setTagFilter(tagFilter === tag.name ? "" : tag.name)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium border whitespace-nowrap transition-all ${tagFilter === tag.name ? "bg-brand text-white border-brand" : "bg-white dark:bg-white/5 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-white/10"}`}
+              >
+                {tag.name}
+              </button>
+            ))}
+          </div>
+        )}
+        {hasFilters && (
+          <button onClick={clearFilters} className="flex items-center space-x-1 text-xs text-brand font-medium hover:underline">
+            <X className="w-3 h-3" />
+            <span>Clear all filters</span>
+          </button>
+        )}
+      </FadeIn>
 
       {/* Loading */}
       {loading ? (
@@ -381,8 +399,14 @@ export default function GalleryPage() {
                   {grouped[monthKey].map((item) => (
                     <StaggeredItem key={item.id} className="break-inside-avoid">
                       <button
-                        onClick={() => setLightboxItem(item)}
-                        className="group block relative rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all cursor-pointer bg-gray-100 dark:bg-white/5 w-full min-h-[140px]"
+                        onClick={() => {
+                          if (selectionMode) {
+                            setSelectedIds(prev => prev.includes(item.id) ? prev.filter(id => id !== item.id) : [...prev, item.id]);
+                          } else {
+                            setLightboxItem(item);
+                          }
+                        }}
+                        className={`group block relative rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all cursor-pointer bg-gray-100 dark:bg-white/5 w-full min-h-[140px] ${selectedIds.includes(item.id) ? "ring-4 ring-brand scale-[0.98]" : ""}`}
                       >
                         {isVideoUrl(item.fileUrl) ? (
                           <video src={item.fileUrl} className="w-full h-auto object-cover" muted preload="metadata" />
@@ -394,12 +418,20 @@ export default function GalleryPage() {
                             {item.entry.title || new Date(item.entry.entryDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                           </p>
                           <div className="flex items-center space-x-2 text-[10px] text-white/80">
-                            <span>{moodEmoji[item.entry.mood] || "😊"} {item.entry.mood}</span>
                             {item.entry.tags.slice(0, 2).map((t) => (
                               <span key={t.id} className="bg-white/20 px-1.5 py-0.5 rounded backdrop-blur-sm">{t.name}</span>
                             ))}
                           </div>
                         </div>
+                        {selectionMode && (
+                          <div className="absolute top-3 left-3 z-10">
+                            {selectedIds.includes(item.id) ? (
+                              <CheckCircle2 className="w-6 h-6 text-brand bg-white rounded-full" />
+                            ) : (
+                              <Circle className="w-6 h-6 text-white/70 bg-black/20 rounded-full" />
+                            )}
+                          </div>
+                        )}
                       </button>
                     </StaggeredItem>
                   ))}
@@ -409,8 +441,14 @@ export default function GalleryPage() {
                   {grouped[monthKey].map((item) => (
                     <StaggeredItem key={item.id}>
                       <button
-                        onClick={() => setLightboxItem(item)}
-                        className="group block relative rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all cursor-pointer aspect-square bg-gray-100 dark:bg-white/5 w-full"
+                        onClick={() => {
+                          if (selectionMode) {
+                            setSelectedIds(prev => prev.includes(item.id) ? prev.filter(id => id !== item.id) : [...prev, item.id]);
+                          } else {
+                            setLightboxItem(item);
+                          }
+                        }}
+                        className={`group block relative rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all cursor-pointer aspect-square bg-gray-100 dark:bg-white/5 w-full ${selectedIds.includes(item.id) ? "ring-4 ring-brand scale-[0.98]" : ""}`}
                       >
                         {isVideoUrl(item.fileUrl) ? (
                           <video src={item.fileUrl} className="w-full h-full object-cover" muted preload="metadata" />
@@ -419,8 +457,16 @@ export default function GalleryPage() {
                         )}
                         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2.5 translate-y-full group-hover:translate-y-0 transition-transform duration-300">
                           <p className="text-white text-xs font-bold truncate">{item.entry.title || "Untitled"}</p>
-                          <span className="text-[10px] text-white/70">{moodEmoji[item.entry.mood] || "😊"} {item.entry.mood}</span>
                         </div>
+                        {selectionMode && (
+                          <div className="absolute top-2 left-2 z-10">
+                            {selectedIds.includes(item.id) ? (
+                              <CheckCircle2 className="w-5 h-5 text-brand bg-white rounded-full" />
+                            ) : (
+                              <Circle className="w-5 h-5 text-white/70 bg-black/20 rounded-full" />
+                            )}
+                          </div>
+                        )}
                       </button>
                     </StaggeredItem>
                   ))}
@@ -466,7 +512,6 @@ export default function GalleryPage() {
                     weekday: "short", month: "long", day: "numeric", year: "numeric",
                   })}
                 </span>
-                <span>{moodEmoji[lightboxItem.entry.mood] || "😊"} {lightboxItem.entry.mood}</span>
               </div>
               {lightboxItem.entry.tags.length > 0 && (
                 <div className="flex items-center justify-center space-x-2 mt-2">
@@ -536,29 +581,13 @@ export default function GalleryPage() {
                 </div>
               )}
 
-              {/* Mood */}
-              <div>
-                <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 block mb-2">Mood</label>
-                <div className="flex flex-wrap gap-2">
-                  {quickMoods.map((m) => (
-                    <button
-                      key={m.value}
-                      type="button"
-                      onClick={() => setUploadMood(m.value)}
-                      className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-all ${uploadMood === m.value ? "bg-brand text-white border-brand" : "bg-white dark:bg-white/5 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-white/10"}`}
-                    >
-                      <span>{m.emoji}</span>
-                      <span className="capitalize">{m.value}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+
 
               {/* Date */}
               <div>
-                <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 block mb-2">Date</label>
                 <input
                   type="date"
+                  max={new Date().toISOString().split("T")[0]}
                   value={uploadDate}
                   onChange={(e) => setUploadDate(e.target.value)}
                   className="w-full px-3 py-2.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand text-gray-900 dark:text-white"

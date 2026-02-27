@@ -3,20 +3,29 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { BookOpen, Plus, FileText, DollarSign, Smile, Flame, Search } from "lucide-react";
+import {
+  BookOpen,
+  Plus,
+  PenLine,
+  Clock,
+  Image as ImageIcon,
+  Wallet,
+  BarChart3,
+  Bell,
+  Sparkles,
+  ArrowRight,
+  Flame,
+  FileText,
+  LogIn,
+  UserPlus,
+} from "lucide-react";
 import { FadeIn } from "@/components/motion/FadeIn";
 import { StaggeredList, StaggeredItem } from "@/components/motion/StaggeredList";
 import { HoverLift } from "@/components/motion/HoverLift";
-import { useCurrency } from "@/hooks/useCurrency";
 
 interface DashboardStats {
   totalMemories: number;
-  totalEntries: number;
-  totalExpenses: number;
   streak: number;
-  topMood: string | null;
-  recentMemories: MemoryData[];
-  recentEntries: MemoryData[];
 }
 
 const dailyQuotes = [
@@ -61,27 +70,6 @@ function getDailyQuote() {
   return dailyQuotes[dayOfYear % dailyQuotes.length];
 }
 
-interface MemoryData {
-  id: string;
-  title: string | null;
-  content: string;
-  mood: string;
-  memoryDate: string;
-  expense: number | null;
-  tags: { id: string; name: string; color: string | null }[];
-}
-
-const moodEmoji: Record<string, string> = {
-  happy: "😊", joyful: "😊", excited: "🤩", peaceful: "😌", calm: "😌",
-  grateful: "🙏", loved: "🥰", productive: "💪", creative: "🎨",
-  sad: "😢", anxious: "😰", stressed: "😫", angry: "😤",
-  tired: "😴", neutral: "😐", reflective: "🤔", hopeful: "🌟",
-};
-
-function getMoodEmoji(mood: string) {
-  return moodEmoji[mood.toLowerCase()] || "😊";
-}
-
 function getGreeting() {
   const hour = new Date().getHours();
   if (hour < 12) return "Good Morning";
@@ -89,262 +77,295 @@ function getGreeting() {
   return "Good Evening";
 }
 
+const features = [
+  {
+    title: "Write a Memory",
+    description: "Capture your thoughts, feelings, and moments in a diary entry.",
+    icon: PenLine,
+    href: "/memory/new",
+    color: "bg-brand text-white",
+    iconBg: "bg-white/20",
+    primary: true,
+  },
+  {
+    title: "My Memories",
+    description: "Browse and revisit all your past memories on the timeline.",
+    icon: Clock,
+    href: "/timeline",
+    color: "text-violet-600 dark:text-violet-400",
+    iconBg: "bg-violet-100 dark:bg-violet-500/15",
+  },
+  {
+    title: "Photo Gallery",
+    description: "View and upload your photos & videos, organized by date and mood.",
+    icon: ImageIcon,
+    href: "/gallery",
+    color: "text-pink-600 dark:text-pink-400",
+    iconBg: "bg-pink-100 dark:bg-pink-500/15",
+  },
+  {
+    title: "Transactions",
+    description: "Track your income and expenses to stay on top of your finances.",
+    icon: Wallet,
+    href: "/transactions",
+    color: "text-emerald-600 dark:text-emerald-400",
+    iconBg: "bg-emerald-100 dark:bg-emerald-500/15",
+  },
+  {
+    title: "Financial Stats",
+    description: "Analyze spending trends, view charts, and download reports.",
+    icon: BarChart3,
+    href: "/stats",
+    color: "text-blue-600 dark:text-blue-400",
+    iconBg: "bg-blue-100 dark:bg-blue-500/15",
+  },
+  {
+    title: "Highlights",
+    description: "See your most meaningful and favorited moments at a glance.",
+    icon: Sparkles,
+    href: "/highlight",
+    color: "text-amber-600 dark:text-amber-400",
+    iconBg: "bg-amber-100 dark:bg-amber-500/15",
+  },
+];
+
 export default function DashboardPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
+  const isAuthenticated = status === "authenticated";
+  const isLoading = status === "loading";
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const { symbol } = useCurrency();
+  const [statsLoading, setStatsLoading] = useState(true);
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      setStatsLoading(false);
+      return;
+    }
     fetch("/api/dashboard/stats")
       .then((res) => res.json())
       .then((data) => {
         setStats({
-          ...data,
           totalMemories: data.totalMemories ?? data.totalEntries ?? 0,
-          recentMemories: data.recentMemories ?? data.recentEntries ?? [],
+          streak: data.streak ?? 0,
         });
       })
       .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
+      .finally(() => setStatsLoading(false));
+  }, [isAuthenticated]);
 
-  const firstName = session?.user?.name?.split(" ")[0] || "there";
+  const firstName = session?.user?.name?.split(" ")[0] || "";
   const quote = getDailyQuote();
 
   return (
-    <div className="flex flex-col min-h-full pb-6 px-4 pt-6 overflow-y-auto w-full lg:px-8 lg:pt-10 lg:max-w-6xl lg:mx-auto">
+    <div className="flex flex-col min-h-full pb-6 px-4 pt-6 overflow-y-auto w-full lg:px-8 lg:pt-10 lg:max-w-5xl lg:mx-auto">
       {/* Mobile Top App Bar */}
-      <div className="flex justify-between items-center mb-8 lg:hidden">
+      <div className="flex justify-between items-center mb-6 lg:hidden">
         <div className="flex items-center space-x-2">
           <div className="w-8 h-8 bg-brand rounded-lg flex items-center justify-center">
             <BookOpen className="w-5 h-5 text-white" strokeWidth={2.5} />
           </div>
-          <span className="font-bold text-gray-900 text-lg">LifeLog</span>
+          <span className="font-bold text-gray-900 dark:text-white text-lg">LifeLog</span>
         </div>
         <div className="flex items-center space-x-3">
-          <Link
-            href="/memory/new"
-            className="w-8 h-8 bg-brand-light text-brand rounded-full flex items-center justify-center hover:bg-brand/20 transition-colors"
-          >
-            <Plus className="w-5 h-5" strokeWidth={2.5} />
-          </Link>
-          <Link href="/profile" className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center overflow-hidden border border-orange-200">
-            {session?.user?.image ? (
-              <img src={session.user.image} alt="Avatar" className="w-full h-full object-cover" />
-            ) : (
-              <UserAvatarPlaceholder />
-            )}
-          </Link>
+          {isAuthenticated ? (
+            <>
+              <Link
+                href="/notifications"
+                className="w-8 h-8 bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300 rounded-full flex items-center justify-center hover:bg-gray-200 dark:hover:bg-white/15 transition-colors"
+              >
+                <Bell className="w-4 h-4" />
+              </Link>
+              <Link href="/profile" className="w-8 h-8 bg-orange-100 dark:bg-orange-500/20 rounded-full flex items-center justify-center overflow-hidden border border-orange-200 dark:border-orange-500/30">
+                {session?.user?.image ? (
+                  <img src={session.user.image} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-xs font-bold text-orange-600 dark:text-orange-400">
+                    {firstName.charAt(0).toUpperCase() || "U"}
+                  </span>
+                )}
+              </Link>
+            </>
+          ) : !isLoading ? (
+            <Link
+              href="/signin"
+              className="flex items-center space-x-1.5 px-4 py-2 bg-brand text-white text-sm font-semibold rounded-xl hover:bg-brand-dark transition-colors"
+            >
+              <LogIn className="w-4 h-4" />
+              <span>Sign In</span>
+            </Link>
+          ) : null}
         </div>
       </div>
 
-      {/* Desktop Header */}
-      <FadeIn className="hidden lg:flex justify-between items-end mb-10">
-        <div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-2 tracking-tight">
-            {getGreeting()}, {firstName} 👋
-          </h1>
-          <p className="text-gray-500 text-base">Ready to capture today&apos;s moments?</p>
-        </div>
-        <div className="relative">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search memories..."
-            className="pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all w-64"
-          />
-        </div>
-      </FadeIn>
+      {/* Hero / Welcome Section */}
+      <FadeIn>
+        <div className="relative overflow-hidden bg-gradient-to-br from-brand via-brand-dark to-indigo-700 rounded-2xl lg:rounded-3xl p-6 lg:p-10 mb-6 lg:mb-8 text-white">
+          {/* Decorative circles */}
+          <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/5 rounded-full" />
+          <div className="absolute -bottom-6 -left-6 w-28 h-28 bg-white/5 rounded-full" />
 
-      {/* Mobile Greeting */}
-      <div className="mb-6 lg:hidden">
-        <h1 className="text-[28px] leading-tight font-bold text-gray-900 mb-1">
-          {getGreeting()}, {firstName} 👋
-        </h1>
-        <p className="text-gray-500 text-sm">Ready to capture today&apos;s moments?</p>
-      </div>
+          <div className="relative z-10">
+            <p className="text-white/70 text-sm font-medium mb-1 lg:mb-2">
+              {getGreeting()}
+            </p>
+            <h1 className="text-2xl lg:text-4xl font-bold mb-2 lg:mb-3 tracking-tight">
+              {isAuthenticated
+                ? `Welcome back, ${firstName} 👋`
+                : "Welcome to LifeLog 👋"}
+            </h1>
+            <p className="text-white/70 text-sm lg:text-base max-w-lg leading-relaxed mb-5 lg:mb-6">
+              {isAuthenticated
+                ? "Your personal space to journal memories, track finances, and capture life\u2019s moments. What would you like to do today?"
+                : "Your personal diary to journal memories, track finances, capture photos, and reflect on life\u2019s best moments. Get started for free."}
+            </p>
 
-      {/* Daily Inspiration Quote */}
-      <FadeIn delay={0.05}>
-        <div className="bg-brand/5 border border-brand/10 rounded-2xl p-4 lg:p-5 mb-6 lg:mb-8">
-          <div className="flex items-start space-x-3">
-            <span className="text-2xl shrink-0">{quote.emoji}</span>
-            <div>
-              <p className="text-sm lg:text-base text-gray-700 italic leading-relaxed">&ldquo;{quote.text}&rdquo;</p>
-              <p className="text-[10px] font-semibold text-brand/60 mt-1.5 tracking-wider">DAILY INSPIRATION</p>
+            <div className="flex flex-wrap items-center gap-3">
+              {isAuthenticated ? (
+                <Link
+                  href="/memory/new"
+                  className="inline-flex items-center space-x-2 px-5 py-2.5 lg:px-6 lg:py-3 bg-white text-brand font-semibold rounded-xl hover:bg-white/90 transition-colors text-sm lg:text-base shadow-lg shadow-black/10"
+                >
+                  <Plus className="w-4 h-4 lg:w-5 lg:h-5" strokeWidth={2.5} />
+                  <span>New Memory</span>
+                </Link>
+              ) : !isLoading ? (
+                <>
+                  <Link
+                    href="/signin"
+                    className="inline-flex items-center space-x-2 px-5 py-2.5 lg:px-6 lg:py-3 bg-white text-brand font-semibold rounded-xl hover:bg-white/90 transition-colors text-sm lg:text-base shadow-lg shadow-black/10"
+                  >
+                    <LogIn className="w-4 h-4 lg:w-5 lg:h-5" />
+                    <span>Sign In</span>
+                  </Link>
+                </>
+              ) : null}
             </div>
           </div>
         </div>
       </FadeIn>
 
-      {loading ? (
-        <StatsLoadingSkeleton />
-      ) : (
-        <>
-          {/* Stats Grid */}
-          <StaggeredList className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-5 mb-8 lg:mb-10">
-            <StaggeredItem>
-              <HoverLift className="bg-brand-light/60 rounded-2xl p-4 lg:p-5 flex flex-col justify-between h-28 lg:h-32">
-                <div className="flex items-center space-x-2 text-brand font-semibold text-xs tracking-wider">
-                  <FileText className="w-4 h-4" />
-                  <span>TOTAL MEMORIES</span>
-                </div>
-                <div className="text-2xl lg:text-3xl font-bold text-gray-900">{stats?.totalMemories ?? 0}</div>
-              </HoverLift>
-            </StaggeredItem>
-            <StaggeredItem>
-              <HoverLift className="bg-blue-50/80 rounded-2xl p-4 lg:p-5 flex flex-col justify-between h-28 lg:h-32">
-                <div className="flex items-center space-x-2 text-blue-600 font-semibold text-xs tracking-wider">
-                  <DollarSign className="w-4 h-4" />
-                  <span>EXPENSES</span>
-                </div>
-                <div className="text-2xl lg:text-3xl font-bold text-gray-900">
-                  {symbol}{stats?.totalExpenses?.toFixed(0) ?? "0"}
-                </div>
-              </HoverLift>
-            </StaggeredItem>
-            <StaggeredItem>
-              <HoverLift className="bg-purple-50/80 rounded-2xl p-4 lg:p-5 flex flex-col justify-between h-28 lg:h-32">
-                <div className="flex items-center space-x-2 text-purple-600 font-semibold text-xs tracking-wider">
-                  <Smile className="w-4 h-4" />
-                  <span>TOP MOOD</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-2xl">{stats?.topMood ? getMoodEmoji(stats.topMood) : "—"}</span>
-                  <span className="text-base font-semibold text-gray-700 capitalize">{stats?.topMood || "None yet"}</span>
-                </div>
-              </HoverLift>
-            </StaggeredItem>
-            <StaggeredItem>
-              <HoverLift className="bg-sky-50/80 rounded-2xl p-4 lg:p-5 flex flex-col justify-between h-28 lg:h-32">
-                <div className="flex items-center space-x-2 text-sky-600 font-semibold text-xs tracking-wider">
-                  <Flame className="w-4 h-4" />
-                  <span>STREAK</span>
-                </div>
-                <div className="text-2xl lg:text-3xl font-bold text-gray-900">
-                  {stats?.streak ?? 0} {(stats?.streak ?? 0) === 1 ? "Day" : "Days"}
-                </div>
-              </HoverLift>
-            </StaggeredItem>
-          </StaggeredList>
+      {/* Daily Inspiration */}
+      <FadeIn delay={0.05}>
+        <div className="bg-surface border border-border rounded-2xl p-4 lg:p-5 mb-6 lg:mb-8">
+          <div className="flex items-start space-x-3">
+            <span className="text-2xl shrink-0">{quote.emoji}</span>
+            <div>
+              <p className="text-sm lg:text-base text-text-muted italic leading-relaxed">
+                &ldquo;{quote.text}&rdquo;
+              </p>
+              <p className="text-[10px] font-semibold text-brand/60 mt-1.5 tracking-wider">
+                DAILY INSPIRATION
+              </p>
+            </div>
+          </div>
+        </div>
+      </FadeIn>
 
-          {/* Recent Memories Header */}
-          <FadeIn delay={0.2} className="flex justify-between items-center mb-4 lg:mb-6 px-1">
-            <h2 className="text-lg lg:text-xl font-bold text-gray-900">Recent Memories</h2>
-            <Link href="/timeline" className="text-sm font-semibold text-brand hover:underline">
-              View All
-            </Link>
-          </FadeIn>
-
-          {/* Memories List */}
-          {stats?.recentMemories && stats.recentMemories.length > 0 ? (
-            <StaggeredList
-              className="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-5"
-              staggerDelay={0.1}
-            >
-              {stats.recentMemories.map((memory) => (
-                <StaggeredItem key={memory.id}>
-                  <MemoryCard memory={memory} />
-                </StaggeredItem>
-              ))}
-            </StaggeredList>
-          ) : (
-            <FadeIn delay={0.3}>
-              <div className="text-center py-16 px-4">
-                <div className="text-6xl mb-4">📖✨</div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">Welcome to LifeLog!</h3>
-                <p className="text-gray-500 mb-6 max-w-sm mx-auto">
-                  Your story starts here. Create your first memory and begin capturing the beautiful moments of your life.
-                </p>
-                <Link
-                  href="/memory/new"
-                  className="inline-flex items-center space-x-2 px-6 py-3 bg-brand hover:bg-brand-dark text-white rounded-xl font-semibold shadow-md shadow-brand/20 transition-all"
-                >
-                  <Plus className="w-5 h-5" />
-                  <span>Create First Memory</span>
-                </Link>
-              </div>
-            </FadeIn>
-          )}
-        </>
+      {/* Quick Stats Ribbon — only for authenticated users */}
+      {isAuthenticated && (
+        <FadeIn delay={0.1}>
+          <div className="flex items-center gap-3 lg:gap-4 mb-6 lg:mb-8">
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-surface border border-border rounded-xl">
+              <FileText className="w-4 h-4 text-brand" />
+              <span className="text-sm font-semibold text-foreground">
+                {statsLoading ? "—" : stats?.totalMemories ?? 0}
+              </span>
+              <span className="text-xs text-text-muted">memories</span>
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-surface border border-border rounded-xl">
+              <Flame className="w-4 h-4 text-orange-500" />
+              <span className="text-sm font-semibold text-foreground">
+                {statsLoading ? "—" : stats?.streak ?? 0}
+              </span>
+              <span className="text-xs text-text-muted">day streak</span>
+            </div>
+          </div>
+        </FadeIn>
       )}
 
-      {/* FAB — mobile only */}
-      <div className="fixed bottom-24 right-5 z-[60] lg:hidden">
-        <Link
-          href="/memory/new"
-          className="w-14 h-14 bg-brand hover:bg-brand-dark text-white rounded-full flex items-center justify-center shadow-lg shadow-brand/30 transition-transform active:scale-95"
-        >
-          <Plus className="w-8 h-8" strokeWidth={2} />
-        </Link>
-      </div>
-    </div>
-  );
-}
+      {/* Section Title */}
+      <FadeIn delay={0.15}>
+        <div className="mb-4 lg:mb-5 px-1">
+          <h2 className="text-lg lg:text-xl font-bold text-foreground">
+            {isAuthenticated ? "Explore LifeLog" : "What you can do"}
+          </h2>
+          <p className="text-sm text-text-muted mt-0.5">
+            {isAuthenticated
+              ? "Everything you need to manage your personal journal."
+              : "LifeLog helps you organize your life in one place."}
+          </p>
+        </div>
+      </FadeIn>
 
-function MemoryCard({ memory }: { memory: MemoryData }) {
-  const date = new Date(memory.memoryDate).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-  const title = memory.title || memory.content.substring(0, 40) + "...";
-  const preview = memory.content.length > 100 ? memory.content.substring(0, 100) + "..." : memory.content;
+      {/* Feature Cards Grid */}
+      <StaggeredList
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4"
+        staggerDelay={0.06}
+      >
+        {features.map((feature) => {
+          const Icon = feature.icon;
 
-  return (
-    <HoverLift>
-      <div className="bg-white p-4 lg:p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col relative overflow-hidden h-full lg:hover:border-gray-200 transition-all duration-200">
-        <div className="absolute top-4 right-4 text-2xl">{getMoodEmoji(memory.mood)}</div>
-        <div className="text-xs text-gray-400 font-medium mb-1">{date}</div>
-        <h3 className="text-base font-bold text-gray-900 mb-2 pr-8">{title}</h3>
-        <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed mb-4">{preview}</p>
-        <div className="flex justify-between items-center mt-auto">
-          <div className="flex flex-wrap gap-2">
-            {memory.tags.slice(0, 3).map((tag) => (
-              <span
-                key={tag.id}
-                className="px-2.5 py-1 bg-brand-light/50 text-brand text-[10px] font-bold rounded-full tracking-wider uppercase"
-              >
-                {tag.name}
-              </span>
-            ))}
-          </div>
+          if (feature.primary) {
+            return (
+              <StaggeredItem key={feature.href}>
+                <Link href={feature.href} className="block sm:col-span-2 lg:col-span-1">
+                  <HoverLift>
+                    <div className="bg-brand rounded-2xl p-5 lg:p-6 text-white group transition-all h-full">
+                      <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center mb-4">
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <h3 className="font-bold text-base lg:text-lg mb-1">{feature.title}</h3>
+                      <p className="text-white/70 text-sm leading-relaxed mb-4">
+                        {feature.description}
+                      </p>
+                      <div className="flex items-center text-sm font-medium text-white/80 group-hover:text-white transition-colors">
+                        <span>{isAuthenticated ? "Get started" : "Try it"}</span>
+                        <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                      </div>
+                    </div>
+                  </HoverLift>
+                </Link>
+              </StaggeredItem>
+            );
+          }
+
+          return (
+            <StaggeredItem key={feature.href}>
+              <Link href={feature.href} className="block h-full">
+                <HoverLift className="h-full">
+                  <div className="bg-surface border border-border rounded-2xl p-5 lg:p-6 group transition-all h-full flex flex-col">
+                    <div className={`w-10 h-10 ${feature.iconBg} rounded-xl flex items-center justify-center mb-4`}>
+                      <Icon className={`w-5 h-5 ${feature.color}`} />
+                    </div>
+                    <h3 className="font-bold text-base text-foreground mb-1">
+                      {feature.title}
+                    </h3>
+                    <p className="text-text-muted text-sm leading-relaxed mb-4 flex-1">
+                      {feature.description}
+                    </p>
+                    <div className={`flex items-center text-sm font-medium ${feature.color} opacity-70 group-hover:opacity-100 transition-opacity`}>
+                      <span>{isAuthenticated ? "Open" : "Learn more"}</span>
+                      <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                  </div>
+                </HoverLift>
+              </Link>
+            </StaggeredItem>
+          );
+        })}
+      </StaggeredList>
+
+      {/* FAB — mobile only, authenticated only */}
+      {isAuthenticated && (
+        <div className="fixed bottom-24 right-5 z-[60] lg:hidden">
           <Link
-            href={`/memory/${memory.id}`}
-            className="px-4 py-1.5 bg-brand-light text-brand text-xs font-semibold rounded-full hover:bg-brand hover:text-white transition-colors"
+            href="/memory/new"
+            className="w-14 h-14 bg-brand hover:bg-brand-dark text-white rounded-full flex items-center justify-center shadow-lg shadow-brand/30 transition-transform active:scale-95"
           >
-            View
+            <Plus className="w-8 h-8" strokeWidth={2} />
           </Link>
         </div>
-      </div>
-    </HoverLift>
-  );
-}
-
-function StatsLoadingSkeleton() {
-  return (
-    <div className="space-y-6 animate-pulse">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-5">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="bg-gray-100 rounded-2xl h-28 lg:h-32" />
-        ))}
-      </div>
-      <div className="h-6 bg-gray-100 rounded w-40" />
-      <div className="space-y-4 lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-5 lg:space-y-0">
-        {[...Array(3)].map((_, i) => (
-          <div key={i} className="bg-gray-100 rounded-2xl h-40" />
-        ))}
-      </div>
+      )}
     </div>
-  );
-}
-
-function UserAvatarPlaceholder() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-      <path d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z" fill="#FDBA74" />
-      <path d="M12.0002 14.5C6.99016 14.5 2.91016 17.86 2.91016 22C2.91016 22.28 3.13016 22.5 3.41016 22.5H20.5902C20.8702 22.5 21.0902 22.28 21.0902 22C21.0902 17.86 17.0102 14.5 12.0002 14.5Z" fill="#FDBA74" />
-    </svg>
   );
 }

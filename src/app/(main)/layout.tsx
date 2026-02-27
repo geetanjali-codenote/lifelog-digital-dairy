@@ -1,5 +1,9 @@
+"use client";
+
+import { useSession } from "next-auth/react";
 import { BottomNav } from "@/components/BottomNav";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
+import { PublicNavbar } from "@/components/PublicNavbar";
 import { Chatbot } from "@/components/Chatbot";
 
 export default function MainLayout({
@@ -7,23 +11,30 @@ export default function MainLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const { status } = useSession();
+  const isAuthenticated = status === "authenticated";
+
   return (
     <div className="flex flex-col min-h-screen w-full bg-background">
-      {/* Desktop sidebar — hidden on mobile */}
-      <DesktopSidebar />
+      {/* Desktop: sidebar for auth, top navbar for public */}
+      {isAuthenticated ? <DesktopSidebar /> : <PublicNavbar />}
 
-      {/* Main content area — offset on desktop for sidebar */}
-      <main className="flex-1 w-full bg-background pb-20 lg:pb-0 lg:pl-[260px]">
+      {/* Main content area */}
+      <main
+        className={`flex-1 w-full bg-background pb-20 lg:pb-0 ${
+          isAuthenticated ? "lg:pl-[260px]" : "lg:pt-16"
+        }`}
+      >
         {children}
       </main>
 
-      {/* Mobile bottom nav — hidden on desktop */}
+      {/* Mobile bottom nav */}
       <div className="lg:hidden">
         <BottomNav />
       </div>
 
-      {/* Global AI Chatbot */}
-      <Chatbot />
+      {/* Global AI Chatbot — authenticated only */}
+      {isAuthenticated && <Chatbot />}
     </div>
   );
 }

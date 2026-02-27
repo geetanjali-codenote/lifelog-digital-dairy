@@ -141,9 +141,8 @@ export default function StatsPage() {
         <div className="flex space-x-3">
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center space-x-2 px-4 py-2.5 border rounded-xl transition-colors text-sm font-medium ${
-              showFilters ? "bg-brand text-white border-brand" : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
-            }`}
+            className={`flex items-center space-x-2 px-4 py-2.5 border rounded-xl transition-colors text-sm font-medium ${showFilters ? "bg-brand text-white border-brand" : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+              }`}
           >
             <Filter className="w-4 h-4" />
             <span>Filter</span>
@@ -180,10 +179,10 @@ export default function StatsPage() {
               <Calendar className="w-3 h-3" />
               <span>From</span>
             </div>
-            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+            <input type="date" max={new Date().toISOString().split("T")[0]} value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
               className="px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20" />
             <span className="text-xs text-gray-400">to</span>
-            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+            <input type="date" max={new Date().toISOString().split("T")[0]} value={dateTo} onChange={(e) => setDateTo(e.target.value)}
               className="px-2 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20" />
           </div>
           {hasFilters && (
@@ -252,9 +251,8 @@ export default function StatsPage() {
             <StaggeredItem key={tx.id}>
               <HoverLift>
                 <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-center hover:border-gray-200 transition-colors">
-                  <div className={`shrink-0 w-12 h-12 rounded-full flex items-center justify-center mr-4 ${
-                    tx.type === "income" ? "bg-emerald-50 text-emerald-500" : "bg-red-50 text-red-500"
-                  }`}>
+                  <div className={`shrink-0 w-12 h-12 rounded-full flex items-center justify-center mr-4 ${tx.type === "income" ? "bg-emerald-50 text-emerald-500" : "bg-red-50 text-red-500"
+                    }`}>
                     {tx.type === "income" ? <TrendingUp className="w-6 h-6" /> : <TrendingDown className="w-6 h-6" />}
                   </div>
 
@@ -270,9 +268,8 @@ export default function StatsPage() {
                     </div>
                   </div>
 
-                  <div className={`shrink-0 text-base font-bold ${
-                    tx.type === "income" ? "text-emerald-600" : "text-gray-900"
-                  }`}>
+                  <div className={`shrink-0 text-base font-bold ${tx.type === "income" ? "text-emerald-600" : "text-gray-900"
+                    }`}>
                     {tx.type === "income" ? "+" : "-"}{symbol}{tx.amount.toFixed(2)}
                   </div>
                 </div>

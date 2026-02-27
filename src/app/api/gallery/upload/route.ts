@@ -5,7 +5,6 @@ import { z } from "zod";
 
 const uploadSchema = z.object({
   urls: z.array(z.string().min(1)).min(1),
-  mood: z.string().min(1).default("happy"),
   entryDate: z.string().optional(),
   tagIds: z.array(z.string()).optional(),
 });
@@ -23,19 +22,18 @@ export async function POST(request: NextRequest) {
     const entry = await prisma.diaryEntry.create({
       data: {
         userId,
-        title: `Photo Upload${count > 1 ? ` (${count})` : ""}`,
         content: `Uploaded ${count} ${count === 1 ? "file" : "files"} to gallery`,
-        mood: data.mood,
+        mood: "neutral",
         entryDate,
         attachments: {
           create: data.urls.map((url) => ({ fileUrl: url })),
         },
         ...(data.tagIds && data.tagIds.length > 0
           ? {
-              entryTags: {
-                create: data.tagIds.map((tagId) => ({ tagId })),
-              },
-            }
+            entryTags: {
+              create: data.tagIds.map((tagId) => ({ tagId })),
+            },
+          }
           : {}),
       },
     });
