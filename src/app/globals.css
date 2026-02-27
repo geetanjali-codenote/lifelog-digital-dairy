@@ -1,0 +1,86 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-inter);
+
+  --color-brand-light: #ECEBFF;
+  --color-brand: #5A52FF;
+  --color-brand-dark: #4038D9;
+
+  --color-background: #F8F9FA;
+  --color-foreground: #111827;
+
+  --color-surface: #FFFFFF;
+  --color-surface-hover: #F3F4F6;
+
+  --color-text-muted: #6B7280;
+  --color-text-subtle: #9CA3AF;
+
+  --color-border: #E5E7EB;
+
+  --color-sidebar-bg: #FFFFFF;
+  --color-sidebar-hover: #F3F4F6;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans), sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html, body {
+  height: 100%;
+}
+
+/* Tablet: keep mobile phone styling for 480px–1023px */
+@media (min-width: 480px) and (max-width: 1023px) {
+  body {
+    display: flex;
+    justify-content: center;
+    background-color: #E5E7EB;
+  }
+  body > * {
+    width: 100%;
+    max-width: 480px;
+    background-color: var(--color-background);
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.08);
+  }
+}
+
+/* Desktop: full layout, no phone simulator */
+@media (min-width: 1024px) {
+  body {
+    display: block;
+    background-color: var(--color-background);
+  }
+}
+
+/* Keyframe animations for server components */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.4s ease-out forwards;
+}
