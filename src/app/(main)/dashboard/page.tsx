@@ -22,6 +22,7 @@ import {
 import { FadeIn } from "@/components/motion/FadeIn";
 import { StaggeredList, StaggeredItem } from "@/components/motion/StaggeredList";
 import { HoverLift } from "@/components/motion/HoverLift";
+import { InsightsPreviewCard } from "@/components/InsightsPreviewCard";
 
 interface DashboardStats {
   totalMemories: number;
@@ -283,8 +284,15 @@ export default function DashboardPage() {
         </FadeIn>
       )}
 
+      {/* AI Insights Preview — authenticated only */}
+      {isAuthenticated && (
+        <FadeIn delay={0.12}>
+          <InsightsPreviewCard />
+        </FadeIn>
+      )}
+
       {/* Section Title */}
-      <FadeIn delay={0.15}>
+      <FadeIn delay={0.18}>
         <div className="mb-4 lg:mb-5 px-1">
           <h2 className="text-lg lg:text-xl font-bold text-foreground">
             {isAuthenticated ? "Explore LifeLog" : "What you can do"}

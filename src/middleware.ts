@@ -13,6 +13,7 @@ const protectedPaths = [
   "/highlight",
   "/highlights",
   "/gallery",
+  "/insights",
 ]
 
 function isProtectedRoute(pathname: string): boolean {
@@ -72,5 +73,6 @@ export const config = {
     "/highlight/:path*",
     "/highlights/:path*",
     "/gallery/:path*",
+    "/insights/:path*",
   ],
 }

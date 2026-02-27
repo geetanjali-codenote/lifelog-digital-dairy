@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, Book, BarChart3, User, Plus, BookOpen, LogOut, Bell, Sparkles, Wallet, Image as ImageIcon } from "lucide-react";
+import { Home, Book, BarChart3, User, Plus, BookOpen, LogOut, Bell, Sparkles, Wallet, Image as ImageIcon, Brain } from "lucide-react";
 import { useSession, signOut } from "next-auth/react";
 import clsx from "clsx";
 import { motion } from "framer-motion";
@@ -13,6 +13,7 @@ const navItems = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
   { name: "Memories", href: "/timeline", icon: Book },
   { name: "Highlights", href: "/highlight", icon: Sparkles },
+  { name: "AI Insights", href: "/insights", icon: Brain },
   { name: "Gallery", href: "/gallery", icon: ImageIcon },
   { name: "Transactions", href: "/transactions", icon: Wallet },
   { name: "Stats", href: "/stats", icon: BarChart3 },
