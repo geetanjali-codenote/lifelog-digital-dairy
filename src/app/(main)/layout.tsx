@@ -7,12 +7,12 @@ export default function MainLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col min-h-screen w-full bg-gray-50/50">
+    <div className="flex flex-col min-h-screen w-full bg-background">
       {/* Desktop sidebar — hidden on mobile */}
       <DesktopSidebar />
 
       {/* Main content area — offset on desktop for sidebar */}
-      <main className="flex-1 w-full bg-[#f8f9fa] pb-20 lg:pb-0 lg:pl-[260px]">
+      <main className="flex-1 w-full bg-background pb-20 lg:pb-0 lg:pl-[260px]">
         {children}
       </main>
 

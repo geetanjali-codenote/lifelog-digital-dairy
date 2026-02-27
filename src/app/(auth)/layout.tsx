@@ -44,7 +44,7 @@ export default function AuthLayout({
       </div>
 
       {/* Right form panel */}
-      <main className="w-full lg:w-1/2 bg-white min-h-screen flex flex-col relative overflow-hidden">
+      <main className="w-full lg:w-1/2 bg-white dark:bg-surface min-h-screen flex flex-col relative overflow-hidden">
         {children}
       </main>
     </div>

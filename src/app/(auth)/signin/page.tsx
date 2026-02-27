@@ -49,7 +49,7 @@ export default function SignInPage() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#FAFAFA] lg:bg-white px-6 py-8 overflow-y-auto min-h-screen lg:justify-center lg:items-center">
+    <div className="flex flex-col h-full bg-[#FAFAFA] lg:bg-white dark:bg-surface px-6 py-8 overflow-y-auto min-h-screen lg:justify-center lg:items-center">
       <div className="flex-1 mt-8 lg:flex-none lg:mt-0 lg:w-full lg:max-w-[420px]">
         <FadeIn>
           {/* App Logo — mobile only */}
@@ -144,7 +144,7 @@ export default function SignInPage() {
               <div className="w-full border-t border-gray-200"></div>
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="bg-[#FAFAFA] lg:bg-white px-4 text-gray-400 font-medium tracking-wide">OR</span>
+              <span className="bg-[#FAFAFA] lg:bg-white dark:bg-surface px-4 text-gray-400 font-medium tracking-wide">OR</span>
             </div>
           </div>
 

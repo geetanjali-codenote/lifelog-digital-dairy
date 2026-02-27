@@ -30,6 +30,7 @@ model User {
   tags          Tag[]
   habits        Habit[]
   notifications Notification[]
+  transactions  Transaction[]
 
   @@map("users")
 }
@@ -84,27 +85,58 @@ model VerificationToken {
 // ============================================
 
 model DiaryEntry {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @map("user_id") @db.Uuid
-  title     String?  @db.VarChar(255)
-  entryDate DateTime @default(now()) @map("entry_date") @db.Date
-  content   String   @db.Text
-  mood      String   @db.VarChar(50)
-  highlight String?  @db.Text
-  gratitude String?  @db.Text
-  expense   Decimal? @db.Decimal(10, 2)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp()
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp()
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  title        String?  @db.VarChar(255)
+  entryDate    DateTime @default(now()) @map("entry_date") @db.Date
+  content      String   @db.Text
+  mood         String   @db.VarChar(50)
+  highlight    String?  @db.Text
+  gratitude    String?  @db.Text
+  expense      Decimal? @db.Decimal(10, 2)
+  expenseTitle String?  @map("expense_title") @db.VarChar(255)
+  expenseDesc  String?  @map("expense_desc") @db.Text
+  expenseType  String?  @default("expense") @map("expense_type") @db.VarChar(50)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp()
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp()
 
   // Relations
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  attachments Attachment[]
-  entryTags   EntryTag[]
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attachments  Attachment[]
+  entryTags    EntryTag[]
+  transactions Transaction[]
 
   @@index([userId])
   @@index([entryDate])
   @@index([userId, entryDate])
   @@map("diary_entries")
+}
+
+// ============================================
+// TRANSACTIONS (Financial Tracking)
+// ============================================
+
+model Transaction {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  entryId     String?  @map("entry_id") @db.Uuid
+  type        String   @db.VarChar(50) // "income" or "expense"
+  amount      Decimal  @db.Decimal(10, 2)
+  title       String   @db.VarChar(255)
+  description String?  @db.Text
+  category    String?  @db.VarChar(100)
+  date        DateTime @default(now()) @db.Date
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp()
+
+  // Relations
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entry DiaryEntry? @relation(fields: [entryId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([userId, date])
+  @@index([userId, type])
+  @@index([entryId])
+  @@map("transactions")
 }
 
 // ============================================

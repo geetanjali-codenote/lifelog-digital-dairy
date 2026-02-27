@@ -48,3 +48,4 @@ next-env.d.ts
 *.sqlite3
 /prisma/migrations/**/migration.sql
 node_modules
+node_modules

@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: var(--font-inter);
 
@@ -34,12 +36,135 @@ html, body {
   height: 100%;
 }
 
-/* Tablet: keep mobile phone styling for 480px–1023px */
+/* ============================================
+   DARK THEME
+   ============================================ */
+
+/* CSS variable overrides */
+.dark {
+  --color-brand-light: rgba(90, 82, 255, 0.15);
+  --color-background: #0f0f0f;
+  --color-foreground: #E5E7EB;
+  --color-surface: #171717;
+  --color-surface-hover: #1f1f1f;
+  --color-text-muted: #9CA3AF;
+  --color-text-subtle: #6B7280;
+  --color-border: #2a2a2a;
+  --color-sidebar-bg: #121212;
+  --color-sidebar-hover: #1a1a1a;
+}
+
+.dark body {
+  background-color: #0f0f0f;
+  color: #E5E7EB;
+}
+
+/* --- Background Colors --- */
+.dark .bg-white { background-color: #171717; }
+.dark .bg-gray-50 { background-color: #1a1a1a; }
+.dark .bg-gray-100 { background-color: #1f1f1f; }
+.dark .bg-gray-200 { background-color: #2a2a2a; }
+.dark .bg-\[\#FAFAFA\] { background-color: #0f0f0f; }
+.dark .bg-\[\#f8f9fa\] { background-color: #0f0f0f; }
+.dark .bg-gray-50\/50 { background-color: rgba(15, 15, 15, 0.5); }
+.dark .bg-gray-50\/80 { background-color: rgba(26, 26, 26, 0.8); }
+
+/* Responsive background variants */
+@media (min-width: 1024px) {
+  .dark .lg\:bg-white { background-color: #171717; }
+  .dark .lg\:bg-gray-50\/80 { background-color: rgba(26, 26, 26, 0.8); }
+}
+
+/* Colored backgrounds */
+.dark .bg-brand-light { background-color: rgba(90, 82, 255, 0.15); }
+.dark .bg-brand-light\/60 { background-color: rgba(90, 82, 255, 0.12); }
+.dark .bg-brand-light\/50 { background-color: rgba(90, 82, 255, 0.10); }
+.dark .bg-brand-light\/40 { background-color: rgba(90, 82, 255, 0.08); }
+.dark .bg-brand-light\/10 { background-color: rgba(90, 82, 255, 0.05); }
+.dark .bg-brand\/10 { background-color: rgba(90, 82, 255, 0.10); }
+
+.dark .bg-blue-50\/80 { background-color: rgba(59, 130, 246, 0.1); }
+.dark .bg-purple-50\/80 { background-color: rgba(147, 51, 234, 0.1); }
+.dark .bg-sky-50\/80 { background-color: rgba(14, 165, 233, 0.1); }
+.dark .bg-emerald-50\/70 { background-color: rgba(16, 185, 129, 0.1); }
+.dark .bg-orange-100 { background-color: rgba(251, 146, 60, 0.15); }
+.dark .bg-indigo-50 { background-color: rgba(99, 102, 241, 0.15); }
+.dark .bg-red-50 { background-color: rgba(239, 68, 68, 0.1); }
+.dark .bg-green-50 { background-color: rgba(34, 197, 94, 0.1); }
+
+/* Hover background states */
+.dark .hover\:bg-gray-50:hover { background-color: #1f1f1f; }
+.dark .hover\:bg-gray-100:hover { background-color: #252525; }
+.dark .hover\:bg-gray-200:hover { background-color: #333333; }
+.dark .hover\:bg-red-50:hover { background-color: rgba(239, 68, 68, 0.15); }
+.dark .hover\:bg-green-50:hover { background-color: rgba(34, 197, 94, 0.15); }
+.dark .hover\:bg-red-100:hover { background-color: rgba(239, 68, 68, 0.2); }
+
+/* --- Text Colors --- */
+.dark .text-gray-900 { color: #E5E7EB; }
+.dark .text-gray-800 { color: #D1D5DB; }
+.dark .text-gray-700 { color: #9CA3AF; }
+.dark .text-gray-600 { color: #9CA3AF; }
+.dark .text-gray-500 { color: #6B7280; }
+.dark .text-gray-400 { color: #4B5563; }
+.dark .text-gray-300 { color: #555555; }
+
+/* Placeholder text */
+.dark .placeholder\:text-gray-400::placeholder { color: #4B5563; }
+
+/* --- Border Colors --- */
+.dark .border-gray-100 { border-color: #2a2a2a; }
+.dark .border-gray-200 { border-color: #333333; }
+.dark .border-gray-300 { border-color: #404040; }
+.dark .border-gray-100\/50 { border-color: rgba(42, 42, 42, 0.5); }
+.dark .border-gray-200\/50 { border-color: rgba(51, 51, 51, 0.5); }
+.dark .border-orange-200 { border-color: rgba(251, 146, 60, 0.3); }
+.dark .border-red-200 { border-color: rgba(239, 68, 68, 0.3); }
+.dark .border-emerald-100\/50 { border-color: rgba(16, 185, 129, 0.15); }
+.dark .border-brand\/5 { border-color: rgba(90, 82, 255, 0.1); }
+.dark .border-brand\/20 { border-color: rgba(90, 82, 255, 0.25); }
+
+/* Hover border states */
+.dark .hover\:border-gray-200:hover { border-color: #404040; }
+.dark .hover\:border-gray-300:hover { border-color: #4a4a4a; }
+
+/* --- Ring Colors --- */
+.dark .ring-white { --tw-ring-color: #2a2a2a; }
+
+/* --- Shadows --- */
+.dark .shadow-sm { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); }
+.dark .shadow-md { box-shadow: 0 4px 6px rgba(0, 0, 0, 0.4); }
+.dark .shadow-lg { box-shadow: 0 10px 15px rgba(0, 0, 0, 0.5); }
+
+/* --- Form Elements --- */
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: #1f1f1f;
+  color: #E5E7EB;
+  border-color: #333333;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #4B5563;
+}
+
+/* Divide colors */
+.dark .divide-gray-100 > * + * { border-color: #2a2a2a; }
+.dark .divide-gray-200 > * + * { border-color: #333333; }
+
+/* ============================================
+   TABLET SIMULATOR (480-1023px)
+   ============================================ */
 @media (min-width: 480px) and (max-width: 1023px) {
   body {
     display: flex;
     justify-content: center;
     background-color: #E5E7EB;
+  }
+  .dark body {
+    background-color: #000000;
   }
   body > * {
     width: 100%;
@@ -49,7 +174,7 @@ html, body {
   }
 }
 
-/* Desktop: full layout, no phone simulator */
+/* Desktop: full layout */
 @media (min-width: 1024px) {
   body {
     display: block;
@@ -57,7 +182,9 @@ html, body {
   }
 }
 
-/* Keyframe animations for server components */
+/* ============================================
+   ANIMATIONS
+   ============================================ */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }

@@ -90,11 +90,9 @@ export const authOptions: NextAuthOptions = {
   },
 
   pages: {
-    signIn: '/auth/signin',
-    signOut: '/auth/signout',
-    error: '/auth/error',
-    verifyRequest: '/auth/verify',
-    newUser: '/dashboard', // Redirect new users to dashboard
+    signIn: '/signin',
+    error: '/signin',
+    newUser: '/dashboard',
   },
 
   session: {
