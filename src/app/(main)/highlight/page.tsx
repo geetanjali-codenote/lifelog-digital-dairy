@@ -1,45 +1,96 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { ChevronLeft, Filter, Sparkles, BarChart2, MapPin, Smile, CalendarDays, Star, PlayCircle, Image as ImageIcon, Video } from "lucide-react";
+import { ChevronLeft, Filter, Sparkles, BarChart2, MapPin, Smile, CalendarDays, Star, PlayCircle, Image as ImageIcon, Video, Loader2 } from "lucide-react";
 import { FadeIn } from "@/components/motion/FadeIn";
+import toast from "react-hot-toast";
 
-const mockAnalytics = {
-  totalMemories: 248,
-  mostActiveMonth: "October",
-  topMood: "happy",
-  topPlace: "New York, USA",
-  monthlyBreakdown: [
-    { month: "Jan", count: 12 },
-    { month: "Feb", count: 18 },
-    { month: "Mar", count: 24 },
-    { month: "Apr", count: 15 },
-    { month: "May", count: 22 },
-    { month: "Jun", count: 30 },
-    { month: "Jul", count: 45 },
-    { month: "Aug", count: 50 },
-    { month: "Sep", count: 35 },
-    { month: "Oct", count: 60 },
-    { month: "Nov", count: 40 },
-    { month: "Dec", count: 25 },
-  ],
-  moodSummary: [
-    { mood: "happy", emoji: "😊", count: 120 },
-    { mood: "peaceful", emoji: "😌", count: 45 },
-    { mood: "excited", emoji: "🤩", count: 30 },
-    { mood: "creative", emoji: "🎨", count: 25 },
-    { mood: "reflective", emoji: "🤔", count: 18 },
-    { mood: "sad", emoji: "😢", count: 10 },
-  ],
-};
+interface AnalyticsData {
+  totalMemories: number;
+  mostActiveMonth: string;
+  topMood: string;
+  topPlace: string;
+  monthlyBreakdown: { month: string; count: number }[];
+  moodSummary: { mood: string; emoji: string; count: number }[];
+}
 
 export default function HighlightAnalyticsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [activeTab, setActiveTab] = useState("Overview");
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Filter States
+  const [dateRange, setDateRange] = useState("All Time");
+  const [mediaType, setMediaType] = useState("All");
+  const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+
+  const fetchAnalytics = useCallback(() => {
+    setLoading(true);
+    const params = new URLSearchParams();
+
+    if (dateRange !== "All Time" && dateRange !== "Custom Range...") {
+      const now = new Date();
+      if (dateRange === "This Year (2025)") {
+        params.set("startDate", new Date(now.getFullYear(), 0, 1).toISOString());
+      } else if (dateRange === "Last Year (2024)") {
+        params.set("startDate", new Date(now.getFullYear() - 1, 0, 1).toISOString());
+        params.set("endDate", new Date(now.getFullYear() - 1, 11, 31).toISOString());
+      } else if (dateRange === "This Month") {
+        params.set("startDate", new Date(now.getFullYear(), now.getMonth(), 1).toISOString());
+      } else if (dateRange === "Last 30 Days") {
+        const d = new Date();
+        d.setDate(d.getDate() - 30);
+        params.set("startDate", d.toISOString());
+      }
+    }
+
+    if (selectedMoods.length > 0) {
+      params.set("mood", selectedMoods[0]);
+    }
+
+    if (favoritesOnly) {
+      params.set("favorite", "true");
+    }
+
+    fetch(`/api/analytics/highlight?${params}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch analytics");
+        return res.json();
+      })
+      .then((data) => {
+        setAnalytics(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error(err);
+        toast.error("Failed to load highlights");
+        setLoading(false);
+      });
+  }, [dateRange, selectedMoods, favoritesOnly]);
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, [fetchAnalytics]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col min-h-full h-[80vh] items-center justify-center w-full">
+        <Loader2 className="w-8 h-8 text-brand animate-spin" />
+        <p className="mt-4 text-gray-500 font-medium">Loading highlights...</p>
+      </div>
+    );
+  }
+
+  if (!analytics) return null;
+
+  const mockAnalytics = analytics;
 
   // A helper for the mini bar chart
-  const maxMonthCount = Math.max(...mockAnalytics.monthlyBreakdown.map(m => m.count));
+  const maxMonthCount = Math.max(...mockAnalytics.monthlyBreakdown.map(m => m.count), 1);
 
   return (
     <div className="flex flex-col min-h-full pb-6 px-4 pt-6 overflow-y-auto w-full lg:px-8 lg:pt-10 lg:max-w-6xl lg:mx-auto">
@@ -87,7 +138,11 @@ export default function HighlightAnalyticsPage() {
                 {/* Date Range */}
                 <div>
                   <label className="text-xs font-semibold text-gray-500 mb-2 block">Date Range</label>
-                  <select className="w-full bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none">
+                  <select
+                    value={dateRange}
+                    onChange={(e) => setDateRange(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none"
+                  >
                     <option>All Time</option>
                     <option>This Year (2025)</option>
                     <option>Last Year (2024)</option>
@@ -101,10 +156,16 @@ export default function HighlightAnalyticsPage() {
                 <div>
                   <label className="text-xs font-semibold text-gray-500 mb-2 block">Media Type</label>
                   <div className="flex space-x-2">
-                    <button className="flex-1 flex items-center justify-center space-x-1 bg-brand/10 text-brand py-2 border border-brand/20 rounded-lg text-sm font-medium">
+                    <button
+                      onClick={() => setMediaType(mediaType === "Images" ? "All" : "Images")}
+                      className={`flex-1 flex items-center justify-center space-x-1 py-2 border rounded-lg text-sm font-medium ${mediaType === "Images" ? "bg-brand/10 text-brand border-brand/20" : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"}`}
+                    >
                       <ImageIcon className="w-4 h-4" /> <span>Images</span>
                     </button>
-                    <button className="flex-1 flex items-center justify-center space-x-1 bg-gray-50 text-gray-600 py-2 border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-100">
+                    <button
+                      onClick={() => setMediaType(mediaType === "Video" ? "All" : "Video")}
+                      className={`flex-1 flex items-center justify-center space-x-1 py-2 border rounded-lg text-sm font-medium ${mediaType === "Video" ? "bg-brand/10 text-brand border-brand/20" : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"}`}
+                    >
                       <Video className="w-4 h-4" /> <span>Video</span>
                     </button>
                   </div>
@@ -114,11 +175,24 @@ export default function HighlightAnalyticsPage() {
                 <div>
                   <label className="text-xs font-semibold text-gray-500 mb-2 block">Moods</label>
                   <div className="flex flex-wrap gap-2">
-                    {mockAnalytics.moodSummary.map(m => (
-                      <button key={m.mood} className="px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm hover:bg-gray-100 transition-colors">
-                        {m.emoji}
-                      </button>
-                    ))}
+                    {mockAnalytics.moodSummary.map(m => {
+                      const isSelected = selectedMoods.includes(m.mood);
+                      return (
+                        <button
+                          key={m.mood}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedMoods(selectedMoods.filter(mood => mood !== m.mood));
+                            } else {
+                              setSelectedMoods([m.mood]); // only one for now
+                            }
+                          }}
+                          className={`px-2.5 py-1.5 border rounded-lg text-sm transition-colors ${isSelected ? "bg-brand text-white border-brand" : "bg-gray-50 border-gray-200 hover:bg-gray-100"}`}
+                        >
+                          {m.emoji}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -126,18 +200,36 @@ export default function HighlightAnalyticsPage() {
                 <div>
                   <label className="text-xs font-semibold text-gray-500 mb-2 block">Categories</label>
                   <div className="flex flex-wrap gap-2">
-                    {["Personal", "Travel", "Work", "Family", "Festival"].map(cat => (
-                      <button key={cat} className="px-3 py-1.5 rounded-full text-xs font-medium border border-gray-200 text-gray-600 hover:bg-gray-50">
-                        {cat}
-                      </button>
-                    ))}
+                    {["Personal", "Travel", "Work", "Family", "Festival"].map(cat => {
+                      const isSelected = selectedCategories.includes(cat);
+                      return (
+                        <button
+                          key={cat}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedCategories(selectedCategories.filter(c => c !== cat));
+                            } else {
+                              setSelectedCategories([...selectedCategories, cat]);
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium border ${isSelected ? "bg-brand text-white border-brand" : "border-gray-200 text-gray-600 hover:bg-gray-50"}`}
+                        >
+                          {cat}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
                 {/* Extras */}
                 <div className="pt-2">
                   <label className="flex items-center space-x-2 cursor-pointer">
-                    <input type="checkbox" className="rounded text-brand focus:ring-brand" />
+                    <input
+                      type="checkbox"
+                      className="rounded text-brand focus:ring-brand"
+                      checked={favoritesOnly}
+                      onChange={(e) => setFavoritesOnly(e.target.checked)}
+                    />
                     <span className="text-sm font-semibold text-gray-700 flex items-center"><Star className="w-4 h-4 text-yellow-400 mr-1 fill-yellow-400" /> Favorites Only</span>
                   </label>
                 </div>
@@ -160,7 +252,10 @@ export default function HighlightAnalyticsPage() {
                 <div>
                   <h2 className="text-2xl font-bold mb-2">Relive Your Year</h2>
                   <p className="text-brand-light/80 text-sm max-w-sm mb-4">You've logged {mockAnalytics.totalMemories} memories this year. Watch a personalized recap of your best moments in 2025.</p>
-                  <button className="inline-flex items-center space-x-2 bg-white text-brand px-5 py-2.5 rounded-full font-bold shadow-md hover:scale-105 transition-transform">
+                  <button
+                    onClick={() => toast("Your personalized recap video is being generated in the background. We'll notify you when it's ready!", { icon: "🎬" })}
+                    className="inline-flex items-center space-x-2 bg-white text-brand px-5 py-2.5 rounded-full font-bold shadow-md hover:scale-105 transition-transform"
+                  >
                     <PlayCircle className="w-5 h-5 fill-brand text-white" />
                     <span>Play Recap</span>
                   </button>

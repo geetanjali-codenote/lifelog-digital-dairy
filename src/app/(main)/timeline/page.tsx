@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
-import { Search, BookOpen, Plus, Filter } from "lucide-react";
+import { Search, Plus, Filter, Star } from "lucide-react";
 import { FadeIn } from "@/components/motion/FadeIn";
 import { HoverLift } from "@/components/motion/HoverLift";
 
@@ -41,12 +41,26 @@ export default function TimelinePage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
+  const [showFavorites, setShowFavorites] = useState(false);
+  const [dateFilter, setDateFilter] = useState("");
 
   const fetchEntries = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams({ page: String(page), limit: "12" });
     if (search) params.set("q", search);
     if (moodFilter) params.set("mood", moodFilter);
+    if (showFavorites) params.set("favorite", "true");
+
+    if (dateFilter) {
+      const now = new Date();
+      if (dateFilter === "thisMonth") {
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        params.set("startDate", start.toISOString());
+      } else if (dateFilter === "thisYear") {
+        const start = new Date(now.getFullYear(), 0, 1);
+        params.set("startDate", start.toISOString());
+      }
+    }
 
     try {
       const res = await fetch(`/api/memories?${params}`);
@@ -55,7 +69,7 @@ export default function TimelinePage() {
       setTotalPages(data.pagination?.totalPages || 1);
     } catch { /* ignore */ }
     setLoading(false);
-  }, [page, search, moodFilter]);
+  }, [page, search, moodFilter, showFavorites, dateFilter]);
 
   useEffect(() => {
     fetchEntries();
@@ -67,12 +81,32 @@ export default function TimelinePage() {
     fetchEntries();
   };
 
+  const toggleFavorite = async (e: React.MouseEvent, entryId: string, currentTags: any[]) => {
+    e.preventDefault();
+    try {
+      const isFav = currentTags.some(t => t.name === "Favorite");
+
+      setEntries(entries.map(ent => {
+        if (ent.id === entryId) {
+          if (isFav) {
+            return { ...ent, tags: ent.tags.filter(t => t.name !== "Favorite") };
+          } else {
+            return { ...ent, tags: [...ent.tags, { id: "temp", name: "Favorite", color: "#EAB308" }] };
+          }
+        }
+        return ent;
+      }));
+
+      await fetch(`/api/memories/${entryId}/favorite`, { method: "POST" });
+    } catch { /* Ignore */ }
+  };
+
   return (
     <div className="flex flex-col min-h-full pb-8 px-4 pt-6 overflow-y-auto w-full lg:px-8 lg:pt-10 lg:max-w-6xl lg:mx-auto">
       {/* Header */}
       <FadeIn>
         <div className="flex justify-between items-center mb-6 lg:mb-8">
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">All Entries</h1>
+          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">All Memories 📚</h1>
           <Link
             href="/memory/new"
             className="flex items-center space-x-2 px-4 py-2.5 bg-brand hover:bg-brand-dark text-white rounded-xl text-sm font-semibold transition-colors shadow-sm"
@@ -103,18 +137,50 @@ export default function TimelinePage() {
         </form>
 
         {showFilters && (
-          <div className="flex flex-wrap gap-2 mb-6">
-            {moodFilters.map((f) => (
-              <button
-                key={f.value}
-                onClick={() => { setMoodFilter(f.value); setPage(1); }}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                  moodFilter === f.value ? "bg-brand text-white border-brand" : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
+          <div className="flex flex-col gap-4 mb-6 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+            <div>
+              <label className="text-xs font-semibold text-gray-500 mb-2 block">Moods</label>
+              <div className="flex flex-wrap gap-2">
+                {moodFilters.map((f) => (
+                  <button
+                    key={f.value}
+                    type="button"
+                    onClick={() => { setMoodFilter(f.value); setPage(1); }}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${moodFilter === f.value ? "bg-brand text-white border-brand" : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                      }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="h-px bg-gray-200 w-full" />
+            <div className="flex flex-wrap gap-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-2 block">Date</label>
+                <select
+                  value={dateFilter}
+                  onChange={(e) => { setDateFilter(e.target.value); setPage(1); }}
+                  className="bg-white border border-gray-200 text-gray-700 text-sm rounded-xl px-3 py-2 outline-none w-40"
+                >
+                  <option value="">All Time</option>
+                  <option value="thisMonth">This Month</option>
+                  <option value="thisYear">This Year</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-2 block">Extras</label>
+                <button
+                  type="button"
+                  onClick={() => { setShowFavorites(!showFavorites); setPage(1); }}
+                  className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-sm font-medium border transition-all ${showFavorites ? "bg-yellow-50 text-yellow-600 border-yellow-200" : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                    }`}
+                >
+                  <Star className={`w-4 h-4 ${showFavorites ? "fill-yellow-400 text-yellow-400" : ""}`} />
+                  <span>Favorites Only</span>
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </FadeIn>
@@ -131,8 +197,14 @@ export default function TimelinePage() {
               <HoverLift key={entry.id}>
                 <Link href={`/memory/${entry.id}`} className="block">
                   <div className="bg-white p-4 lg:p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col relative overflow-hidden h-full hover:border-gray-200 transition-all duration-200">
-                    <div className="absolute top-4 right-4 text-2xl">
-                      {moodEmoji[entry.mood.toLowerCase()] || "😊"}
+                    <div className="absolute top-4 right-4 flex items-center space-x-2 text-2xl">
+                      <button
+                        onClick={(e) => toggleFavorite(e, entry.id, entry.tags)}
+                        className="text-gray-300 hover:text-yellow-400 transition-colors p-1"
+                      >
+                        <Star className={`w-5 h-5 ${entry.tags.some(t => t.name === "Favorite") ? "fill-yellow-400 text-yellow-400" : ""}`} />
+                      </button>
+                      <span>{moodEmoji[entry.mood.toLowerCase()] || "😊"}</span>
                     </div>
                     <div className="text-xs text-gray-400 font-medium mb-1">
                       {new Date(entry.entryDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
@@ -179,14 +251,14 @@ export default function TimelinePage() {
         </>
       ) : (
         <div className="text-center py-16 px-4">
-          <div className="w-20 h-20 bg-brand-light/50 rounded-full flex items-center justify-center mx-auto mb-6">
-            <BookOpen className="w-10 h-10 text-brand/60" />
+          <div className="text-6xl mb-4">
+            {search || moodFilter ? "🔍" : "📖✨"}
           </div>
           <h3 className="text-xl font-bold text-gray-900 mb-2">
-            {search || moodFilter ? "No entries found" : "No entries yet"}
+            {search || moodFilter ? "No memories found" : "No memories yet"}
           </h3>
           <p className="text-gray-500 mb-6 max-w-sm mx-auto">
-            {search || moodFilter ? "Try adjusting your search or filters." : "Start capturing your journey. Create your first diary entry!"}
+            {search || moodFilter ? "Try adjusting your search or filters." : "Your story starts here. Start capturing your beautiful moments!"}
           </p>
           {!search && !moodFilter && (
             <Link href="/memory/new" className="inline-flex items-center space-x-2 px-6 py-3 bg-brand hover:bg-brand-dark text-white rounded-xl font-semibold shadow-md shadow-brand/20 transition-all">

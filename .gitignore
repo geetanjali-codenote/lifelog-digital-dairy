@@ -49,3 +49,7 @@ next-env.d.ts
 /prisma/migrations/**/migration.sql
 node_modules
 node_modules
+
+# user uploads
+/public/uploads/*
+!/public/uploads/.gitkeep

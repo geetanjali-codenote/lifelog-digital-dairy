@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { SessionProvider } from "@/components/providers/SessionProvider";
+import { Toaster } from "react-hot-toast";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -33,13 +34,27 @@ export default function RootLayout({
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem("lifelog-theme");if(t==="dark"||(!t&&window.matchMedia("(prefers-color-scheme:dark)").matches)){document.documentElement.classList.add("dark")}}catch(e){}})()`,
+            __html: `(function(){try{var t=localStorage.getItem("lifelog-theme");if(t==="light"){return}document.documentElement.classList.add("dark")}catch(e){document.documentElement.classList.add("dark")}})()`,
           }}
         />
       </head>
       <body className={`${inter.variable} font-sans antialiased text-foreground bg-background`}>
         <SessionProvider>
           {children}
+          <Toaster
+            position="top-center"
+            toastOptions={{
+              duration: 3000,
+              style: {
+                borderRadius: '12px',
+                background: '#333',
+                color: '#fff',
+                fontSize: '14px',
+                fontWeight: 500,
+                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+              },
+            }}
+          />
         </SessionProvider>
       </body>
     </html>

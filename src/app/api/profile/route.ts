@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import prisma from "@/lib/prisma"
 import { requireAuthUserId, AuthError, unauthorizedResponse } from "@/lib/auth-utils"
+import { VALID_CURRENCY_CODES } from "@/lib/currency"
 
 const updateProfileSchema = z.object({
   name: z.string().min(2).max(255).optional(),
@@ -9,6 +10,9 @@ const updateProfileSchema = z.object({
     (val) => val.startsWith("data:image/") || val.startsWith("http://") || val.startsWith("https://"),
     { message: "Must be a valid image URL or data URL" }
   ).nullable().optional(),
+  currency: z.string().refine((val) => VALID_CURRENCY_CODES.includes(val), {
+    message: "Invalid currency code",
+  }).optional(),
 })
 
 export async function GET() {
@@ -17,16 +21,10 @@ export async function GET() {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        image: true,
-        createdAt: true,
-        _count: {
-          select: { diaryEntries: true },
-        },
-      },
+    })
+
+    const entryCount = await prisma.diaryEntry.count({
+      where: { userId }
     })
 
     if (!user) {
@@ -44,7 +42,9 @@ export async function GET() {
 
     return NextResponse.json({
       ...user,
-      entryCount: user._count.diaryEntries,
+      passwordHash: undefined, // ensure we don't leak it
+      hasPassword: !!user.passwordHash,
+      entryCount: entryCount,
       totalExpenses: expenseResult._sum.expense ? Number(expenseResult._sum.expense) : 0,
       streak,
     })
@@ -64,13 +64,6 @@ export async function PUT(request: NextRequest) {
     const user = await prisma.user.update({
       where: { id: userId },
       data,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        image: true,
-        createdAt: true,
-      },
     })
 
     return NextResponse.json(user)

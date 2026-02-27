@@ -7,13 +7,58 @@ import { BookOpen, Plus, FileText, DollarSign, Smile, Flame, Search } from "luci
 import { FadeIn } from "@/components/motion/FadeIn";
 import { StaggeredList, StaggeredItem } from "@/components/motion/StaggeredList";
 import { HoverLift } from "@/components/motion/HoverLift";
+import { useCurrency } from "@/hooks/useCurrency";
 
 interface DashboardStats {
   totalMemories: number;
+  totalEntries: number;
   totalExpenses: number;
   streak: number;
   topMood: string | null;
   recentMemories: MemoryData[];
+  recentEntries: MemoryData[];
+}
+
+const dailyQuotes = [
+  { text: "The best time to plant a tree was 20 years ago. The second best time is now.", emoji: "🌱" },
+  { text: "Every day is a new beginning. Take a deep breath and start again.", emoji: "🌅" },
+  { text: "Your life is your story. Write well. Edit often.", emoji: "✍️" },
+  { text: "Be yourself; everyone else is already taken.", emoji: "💫" },
+  { text: "The only way to do great work is to love what you do.", emoji: "❤️" },
+  { text: "Today is a good day to have a good day.", emoji: "☀️" },
+  { text: "Small steps every day lead to big changes.", emoji: "👣" },
+  { text: "You are braver than you believe, stronger than you seem.", emoji: "🦁" },
+  { text: "Happiness is not by chance, but by choice.", emoji: "🌻" },
+  { text: "What you do today can improve all your tomorrows.", emoji: "🚀" },
+  { text: "Life is 10% what happens and 90% how you react.", emoji: "🎯" },
+  { text: "The journey of a thousand miles begins with one step.", emoji: "🏔️" },
+  { text: "Be the change you wish to see in the world.", emoji: "🌍" },
+  { text: "Collect moments, not things.", emoji: "📸" },
+  { text: "Every moment is a fresh beginning.", emoji: "🌸" },
+  { text: "Turn your wounds into wisdom.", emoji: "🦋" },
+  { text: "Breathe. It's just a bad day, not a bad life.", emoji: "🍃" },
+  { text: "Stars can't shine without darkness.", emoji: "✨" },
+  { text: "Do more of what makes you happy.", emoji: "🎉" },
+  { text: "You are enough, just as you are.", emoji: "💜" },
+  { text: "Make today so awesome, yesterday gets jealous.", emoji: "🔥" },
+  { text: "Progress, not perfection.", emoji: "📈" },
+  { text: "Be gentle with yourself. You're doing the best you can.", emoji: "🤗" },
+  { text: "Every ending is a new beginning in disguise.", emoji: "🌈" },
+  { text: "Your vibe attracts your tribe.", emoji: "🫶" },
+  { text: "Dream big. Start small. Act now.", emoji: "💭" },
+  { text: "Gratitude turns what we have into enough.", emoji: "🙏" },
+  { text: "Let your light shine bright.", emoji: "🌟" },
+  { text: "Adventures await around every corner.", emoji: "🗺️" },
+  { text: "You're one step closer than you were yesterday.", emoji: "🎯" },
+  { text: "Create the life you can't wait to wake up to.", emoji: "🌞" },
+];
+
+function getDailyQuote() {
+  const today = new Date();
+  const dayOfYear = Math.floor(
+    (today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / 86400000
+  );
+  return dailyQuotes[dayOfYear % dailyQuotes.length];
 }
 
 interface MemoryData {
@@ -48,16 +93,24 @@ export default function DashboardPage() {
   const { data: session } = useSession();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const { symbol } = useCurrency();
 
   useEffect(() => {
     fetch("/api/dashboard/stats")
       .then((res) => res.json())
-      .then((data) => setStats(data))
+      .then((data) => {
+        setStats({
+          ...data,
+          totalMemories: data.totalMemories ?? data.totalEntries ?? 0,
+          recentMemories: data.recentMemories ?? data.recentEntries ?? [],
+        });
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
 
   const firstName = session?.user?.name?.split(" ")[0] || "there";
+  const quote = getDailyQuote();
 
   return (
     <div className="flex flex-col min-h-full pb-6 px-4 pt-6 overflow-y-auto w-full lg:px-8 lg:pt-10 lg:max-w-6xl lg:mx-auto">
@@ -90,9 +143,9 @@ export default function DashboardPage() {
       <FadeIn className="hidden lg:flex justify-between items-end mb-10">
         <div>
           <h1 className="text-4xl font-bold text-gray-900 mb-2 tracking-tight">
-            {getGreeting()}, {firstName}
+            {getGreeting()}, {firstName} 👋
           </h1>
-          <p className="text-gray-500 text-base">Ready to log your day?</p>
+          <p className="text-gray-500 text-base">Ready to capture today&apos;s moments?</p>
         </div>
         <div className="relative">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -107,10 +160,23 @@ export default function DashboardPage() {
       {/* Mobile Greeting */}
       <div className="mb-6 lg:hidden">
         <h1 className="text-[28px] leading-tight font-bold text-gray-900 mb-1">
-          {getGreeting()}, {firstName}
+          {getGreeting()}, {firstName} 👋
         </h1>
-        <p className="text-gray-500 text-sm">Ready to log your day?</p>
+        <p className="text-gray-500 text-sm">Ready to capture today&apos;s moments?</p>
       </div>
+
+      {/* Daily Inspiration Quote */}
+      <FadeIn delay={0.05}>
+        <div className="bg-brand/5 border border-brand/10 rounded-2xl p-4 lg:p-5 mb-6 lg:mb-8">
+          <div className="flex items-start space-x-3">
+            <span className="text-2xl shrink-0">{quote.emoji}</span>
+            <div>
+              <p className="text-sm lg:text-base text-gray-700 italic leading-relaxed">&ldquo;{quote.text}&rdquo;</p>
+              <p className="text-[10px] font-semibold text-brand/60 mt-1.5 tracking-wider">DAILY INSPIRATION</p>
+            </div>
+          </div>
+        </div>
+      </FadeIn>
 
       {loading ? (
         <StatsLoadingSkeleton />
@@ -134,7 +200,7 @@ export default function DashboardPage() {
                   <span>EXPENSES</span>
                 </div>
                 <div className="text-2xl lg:text-3xl font-bold text-gray-900">
-                  ${stats?.totalExpenses?.toFixed(0) ?? "0"}
+                  {symbol}{stats?.totalExpenses?.toFixed(0) ?? "0"}
                 </div>
               </HoverLift>
             </StaggeredItem>
@@ -186,12 +252,10 @@ export default function DashboardPage() {
           ) : (
             <FadeIn delay={0.3}>
               <div className="text-center py-16 px-4">
-                <div className="w-20 h-20 bg-brand-light/50 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <BookOpen className="w-10 h-10 text-brand/60" />
-                </div>
+                <div className="text-6xl mb-4">📖✨</div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2">Welcome to LifeLog!</h3>
                 <p className="text-gray-500 mb-6 max-w-sm mx-auto">
-                  Start capturing your journey. Create your first memory to get started.
+                  Your story starts here. Create your first memory and begin capturing the beautiful moments of your life.
                 </p>
                 <Link
                   href="/memory/new"

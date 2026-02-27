@@ -35,9 +35,12 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "10")
     const q = searchParams.get("q") || ""
     const mood = searchParams.get("mood") || ""
+    const favorite = searchParams.get("favorite") === "true"
+    const startDate = searchParams.get("startDate")
+    const endDate = searchParams.get("endDate")
     const skip = (page - 1) * limit
 
-    const where: Record<string, unknown> = { userId }
+    const where: any = { userId }
 
     if (q) {
       where.OR = [
@@ -48,6 +51,22 @@ export async function GET(request: NextRequest) {
 
     if (mood) {
       where.mood = mood
+    }
+
+    if (favorite) {
+      where.entryTags = {
+        some: {
+          tag: {
+            name: "Favorite"
+          }
+        }
+      }
+    }
+
+    if (startDate || endDate) {
+      where.entryDate = {}
+      if (startDate) where.entryDate.gte = new Date(startDate)
+      if (endDate) where.entryDate.lte = new Date(endDate)
     }
 
     const [entries, total] = await Promise.all([

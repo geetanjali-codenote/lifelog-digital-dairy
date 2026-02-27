@@ -1,15 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ChevronLeft, Sparkles, Heart, DollarSign, Tag, X, Plus,
-  Image as ImageIcon, Trash2, TrendingUp, TrendingDown, AlertCircle
+  Image as ImageIcon, Trash2, TrendingUp, TrendingDown, AlertCircle, Smile
 } from "lucide-react";
 import { FadeIn } from "@/components/motion/FadeIn";
+import { useCurrency } from "@/hooks/useCurrency";
+import toast from "react-hot-toast";
+import { EmojiPicker, getMoodFromEmoji, getEmojiForMood } from "@/components/EmojiPicker";
 
-const moods = [
+const quickMoods = [
   { value: "happy", emoji: "😊", label: "Happy" },
   { value: "excited", emoji: "🤩", label: "Excited" },
   { value: "peaceful", emoji: "😌", label: "Peaceful" },
@@ -58,11 +61,18 @@ function createEmptyTransaction(): TransactionItem {
 
 export default function NewEntryPage() {
   const router = useRouter();
+  const { symbol } = useCurrency();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [tags, setTags] = useState<TagData[]>([]);
   const [newTagName, setNewTagName] = useState("");
   const [transactions, setTransactions] = useState<TransactionItem[]>([]);
+  const [showMoodPicker, setShowMoodPicker] = useState(false);
+  const [showTextEmojiPicker, setShowTextEmojiPicker] = useState(false);
+  const [moodEmoji, setMoodEmoji] = useState("😊");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const moodPickerBtnRef = useRef<HTMLButtonElement>(null);
+  const textEmojiRef = useRef<HTMLButtonElement>(null);
   const [form, setForm] = useState({
     title: "",
     content: "",
@@ -75,7 +85,7 @@ export default function NewEntryPage() {
   });
 
   useEffect(() => {
-    fetch("/api/tags").then((r) => r.json()).then(setTags).catch(() => {});
+    fetch("/api/tags").then((r) => r.json()).then(setTags).catch(() => { });
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -101,6 +111,7 @@ export default function NewEntryPage() {
     }
 
     setSaving(true);
+    const loadingToast = toast.loading("Saving memory...");
     try {
       const res = await fetch("/api/memories", {
         method: "POST",
@@ -116,12 +127,12 @@ export default function NewEntryPage() {
           images: form.images.length > 0 ? form.images : undefined,
           transactions: validTransactions.length > 0
             ? validTransactions.map(t => ({
-                type: t.type,
-                amount: parseFloat(t.amount),
-                title: t.title,
-                description: t.description || undefined,
-                category: t.category || undefined,
-              }))
+              type: t.type,
+              amount: parseFloat(t.amount),
+              title: t.title,
+              description: t.description || undefined,
+              category: t.category || undefined,
+            }))
             : undefined,
         }),
       });
@@ -132,9 +143,12 @@ export default function NewEntryPage() {
       }
 
       const entry = await res.json();
+      toast.success("Memory saved successfully!", { id: loadingToast });
       router.push(`/memory/${entry.id}`);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+      const errorMessage = err instanceof Error ? err.message : "An error occurred";
+      toast.error(errorMessage, { id: loadingToast });
+      setError(errorMessage);
     }
     setSaving(false);
   };
@@ -165,10 +179,27 @@ export default function NewEntryPage() {
     }));
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const newImages = Array.from(e.target.files).map(file => URL.createObjectURL(file));
-      setForm(prev => ({ ...prev, images: [...prev.images, ...newImages] }));
+  const [uploading, setUploading] = useState(false);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      Array.from(e.target.files).forEach((file) => formData.append("files", file));
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error || "Upload failed");
+        return;
+      }
+      const { urls } = await res.json();
+      setForm((prev) => ({ ...prev, images: [...prev.images, ...urls] }));
+    } catch {
+      toast.error("Failed to upload images");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
     }
   };
 
@@ -245,22 +276,57 @@ export default function NewEntryPage() {
               {/* Mood */}
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-3">
-                  How are you feeling? <span className="text-red-400">*</span>
+                  What&apos;s your mood? Tell us! <span className="text-red-400">*</span>
                 </label>
-                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-                  {moods.map((mood) => (
+
+                {/* Selected mood display */}
+                <div className="flex items-center space-x-3 mb-3">
+                  <div className="relative">
+                    <button
+                      ref={moodPickerBtnRef}
+                      type="button"
+                      onClick={() => setShowMoodPicker(!showMoodPicker)}
+                      className="w-14 h-14 flex items-center justify-center text-3xl bg-brand-light/50 border-2 border-brand rounded-2xl hover:scale-105 transition-all"
+                    >
+                      {moodEmoji}
+                    </button>
+                    {showMoodPicker && (
+                      <div className="absolute top-16 left-0 z-50">
+                        <EmojiPicker
+                          onSelect={(emoji) => {
+                            setMoodEmoji(emoji);
+                            const moodName = getMoodFromEmoji(emoji);
+                            setForm((prev) => ({ ...prev, mood: moodName }));
+                            setShowMoodPicker(false);
+                          }}
+                          onClose={() => setShowMoodPicker(false)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900 capitalize">{form.mood}</p>
+                    <p className="text-xs text-gray-400">Tap emoji to change</p>
+                  </div>
+                </div>
+
+                {/* Quick mood chips */}
+                <div className="flex flex-wrap gap-1.5">
+                  {quickMoods.map((mood) => (
                     <button
                       key={mood.value}
                       type="button"
-                      onClick={() => setForm({ ...form, mood: mood.value })}
-                      className={`flex flex-col items-center p-2.5 rounded-xl border-2 transition-all ${
-                        form.mood === mood.value
-                          ? "border-brand bg-brand-light/50 scale-105"
-                          : "border-gray-100 hover:border-gray-200"
-                      }`}
+                      onClick={() => {
+                        setForm({ ...form, mood: mood.value });
+                        setMoodEmoji(mood.emoji);
+                      }}
+                      className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-full border text-xs font-medium transition-all ${form.mood === mood.value
+                          ? "border-brand bg-brand-light/50 text-brand"
+                          : "border-gray-100 text-gray-500 hover:border-gray-200"
+                        }`}
                     >
-                      <span className="text-xl mb-0.5">{mood.emoji}</span>
-                      <span className="text-[10px] font-medium text-gray-600">{mood.label}</span>
+                      <span>{mood.emoji}</span>
+                      <span>{mood.label}</span>
                     </button>
                   ))}
                 </div>
@@ -271,13 +337,51 @@ export default function NewEntryPage() {
                 <label className="text-sm font-medium text-gray-700 block mb-2">
                   What&apos;s on your mind? <span className="text-red-400">*</span>
                 </label>
-                <textarea
-                  value={form.content}
-                  onChange={(e) => setForm({ ...form, content: e.target.value })}
-                  rows={6}
-                  placeholder="Write about your day..."
-                  className={`${inputClass} resize-none leading-relaxed`}
-                />
+                <div className="relative">
+                  <textarea
+                    ref={textareaRef}
+                    value={form.content}
+                    onChange={(e) => setForm({ ...form, content: e.target.value })}
+                    rows={6}
+                    placeholder="Write about your day..."
+                    className={`${inputClass} resize-none leading-relaxed pr-12`}
+                  />
+                  <div className="absolute bottom-2 right-2">
+                    <button
+                      ref={textEmojiRef}
+                      type="button"
+                      onClick={() => setShowTextEmojiPicker(!showTextEmojiPicker)}
+                      className={`p-2 rounded-lg transition-colors ${showTextEmojiPicker ? "bg-brand/10 text-brand" : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"}`}
+                      title="Insert emoji"
+                    >
+                      <Smile className="w-5 h-5" />
+                    </button>
+                    {showTextEmojiPicker && (
+                      <div className="absolute bottom-10 right-0 z-50">
+                        <EmojiPicker
+                          onSelect={(emoji) => {
+                            const ta = textareaRef.current;
+                            if (ta) {
+                              const start = ta.selectionStart;
+                              const end = ta.selectionEnd;
+                              const newContent = form.content.slice(0, start) + emoji + form.content.slice(end);
+                              setForm((prev) => ({ ...prev, content: newContent }));
+                              // Restore cursor position after emoji
+                              requestAnimationFrame(() => {
+                                ta.focus();
+                                const pos = start + emoji.length;
+                                ta.setSelectionRange(pos, pos);
+                              });
+                            } else {
+                              setForm((prev) => ({ ...prev, content: prev.content + emoji }));
+                            }
+                          }}
+                          onClose={() => setShowTextEmojiPicker(false)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Highlight & Gratitude side by side on desktop */}
@@ -310,16 +414,20 @@ export default function NewEntryPage() {
                 </div>
               </div>
 
-              {/* Photos */}
+              {/* Photos & Videos */}
               <div>
                 <div className="flex items-center space-x-2 mb-3">
                   <ImageIcon className="w-4 h-4 text-gray-400" />
-                  <label className="text-sm font-medium text-gray-700">Photos</label>
+                  <label className="text-sm font-medium text-gray-700">Photos & Videos</label>
                 </div>
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                   {form.images.map((src, index) => (
-                    <div key={index} className="relative aspect-square rounded-xl overflow-hidden group shadow-sm">
-                      <img src={src} alt="Upload preview" className="w-full h-full object-cover" />
+                    <div key={index} className="relative aspect-square rounded-xl overflow-hidden group shadow-sm bg-gray-100">
+                      {/\.(mp4|webm|mov)$/i.test(src) ? (
+                        <video src={src} className="w-full h-full object-cover" muted preload="metadata" />
+                      ) : (
+                        <img src={src} alt="Upload preview" className="w-full h-full object-cover" />
+                      )}
                       <button
                         type="button"
                         onClick={() => removeImage(index)}
@@ -329,10 +437,16 @@ export default function NewEntryPage() {
                       </button>
                     </div>
                   ))}
-                  <label className="flex flex-col items-center justify-center aspect-square bg-gray-50 border-2 border-dashed border-gray-200 rounded-xl hover:bg-gray-100 hover:border-gray-300 transition-colors cursor-pointer text-gray-500 hover:text-gray-700">
-                    <Plus className="w-5 h-5 mb-1" />
-                    <span className="text-xs font-medium">Add</span>
-                    <input type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
+                  <label className={`flex flex-col items-center justify-center aspect-square bg-gray-50 border-2 border-dashed border-gray-200 rounded-xl hover:bg-gray-100 hover:border-gray-300 transition-colors cursor-pointer text-gray-500 hover:text-gray-700 ${uploading ? "pointer-events-none opacity-50" : ""}`}>
+                    {uploading ? (
+                      <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <Plus className="w-5 h-5 mb-1" />
+                        <span className="text-xs font-medium">Add</span>
+                      </>
+                    )}
+                    <input type="file" accept="image/*,video/mp4,video/webm,video/quicktime" multiple onChange={handleImageUpload} className="hidden" disabled={uploading} />
                   </label>
                 </div>
               </div>
@@ -373,9 +487,8 @@ export default function NewEntryPage() {
                             <button
                               type="button"
                               onClick={() => updateTransaction(txn.id, "type", "expense")}
-                              className={`flex items-center space-x-1 px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${
-                                txn.type === "expense" ? "bg-white text-red-500 shadow-sm" : "text-gray-400"
-                              }`}
+                              className={`flex items-center space-x-1 px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${txn.type === "expense" ? "bg-white text-red-500 shadow-sm" : "text-gray-400"
+                                }`}
                             >
                               <TrendingDown className="w-3 h-3" />
                               <span>Expense</span>
@@ -383,9 +496,8 @@ export default function NewEntryPage() {
                             <button
                               type="button"
                               onClick={() => updateTransaction(txn.id, "type", "income")}
-                              className={`flex items-center space-x-1 px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${
-                                txn.type === "income" ? "bg-white text-emerald-500 shadow-sm" : "text-gray-400"
-                              }`}
+                              className={`flex items-center space-x-1 px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${txn.type === "income" ? "bg-white text-emerald-500 shadow-sm" : "text-gray-400"
+                                }`}
                             >
                               <TrendingUp className="w-3 h-3" />
                               <span>Income</span>
@@ -407,7 +519,7 @@ export default function NewEntryPage() {
                             step="0.01"
                             value={txn.amount}
                             onChange={(e) => updateTransaction(txn.id, "amount", e.target.value)}
-                            placeholder="$0.00"
+                            placeholder="0.00"
                             className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand placeholder:text-gray-400 text-gray-900"
                           />
                           <input
@@ -452,8 +564,8 @@ export default function NewEntryPage() {
                             const expense = transactions.filter(t => t.type === "expense").reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
                             return (
                               <>
-                                {income > 0 && <span className="text-emerald-500">+${income.toFixed(2)}</span>}
-                                {expense > 0 && <span className="text-red-500">-${expense.toFixed(2)}</span>}
+                                {income > 0 && <span className="text-emerald-500">+{symbol}{income.toFixed(2)}</span>}
+                                {expense > 0 && <span className="text-red-500">-{symbol}{expense.toFixed(2)}</span>}
                               </>
                             );
                           })()}
@@ -476,11 +588,10 @@ export default function NewEntryPage() {
                       key={tag.id}
                       type="button"
                       onClick={() => toggleTag(tag.id)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                        form.tagIds.includes(tag.id)
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${form.tagIds.includes(tag.id)
                           ? "bg-brand text-white border-brand"
                           : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
-                      }`}
+                        }`}
                     >
                       {form.tagIds.includes(tag.id) && <span className="mr-1">✓</span>}
                       {tag.name}

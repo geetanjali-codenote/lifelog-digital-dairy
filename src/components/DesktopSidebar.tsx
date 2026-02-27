@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, Book, BarChart3, User, Plus, BookOpen, LogOut, Bell, Sparkles, Settings, Sun, Chrome as Moon, Wallet } from "lucide-react";
+import { Home, Book, BarChart3, User, Plus, BookOpen, LogOut, Bell, Sparkles, Settings, Sun, Chrome as Moon, Wallet, Image as ImageIcon } from "lucide-react";
 import { useSession, signOut } from "next-auth/react";
 import clsx from "clsx";
 import { motion } from "framer-motion";
@@ -13,8 +13,10 @@ const navItems = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
   { name: "Memories", href: "/timeline", icon: Book },
   { name: "Highlights", href: "/highlight", icon: Sparkles },
+  { name: "Gallery", href: "/gallery", icon: ImageIcon },
   { name: "Transactions", href: "/transactions", icon: Wallet },
   { name: "Stats", href: "/stats", icon: BarChart3 },
+  { name: "Notifications", href: "/notifications", icon: Bell },
   { name: "Profile", href: "/profile", icon: User },
 ];
 
@@ -82,7 +84,12 @@ export function DesktopSidebar() {
             >
               <IconComponent className="w-5 h-5" strokeWidth={isActive ? 2.5 : 2} />
               <span>{item.name}</span>
-              {isActive && (
+              {item.name === "Notifications" && unreadCount > 0 && (
+                <span className="ml-auto bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+              {isActive && item.name !== "Notifications" && (
                 <motion.div
                   layoutId="sidebar-active-dot"
                   className="ml-auto w-1.5 h-1.5 rounded-full bg-brand"
@@ -92,25 +99,6 @@ export function DesktopSidebar() {
             </Link>
           );
         })}
-
-        {/* Notifications */}
-        <Link
-          href="/notifications"
-          className={clsx(
-            "flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 relative",
-            pathname === "/notifications"
-              ? "bg-brand-light text-brand"
-              : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
-          )}
-        >
-          <Bell className="w-5 h-5" strokeWidth={pathname === "/notifications" ? 2.5 : 2} />
-          <span>Notifications</span>
-          {unreadCount > 0 && (
-            <span className="ml-auto bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
-          )}
-        </Link>
       </nav>
 
       {/* User Section */}

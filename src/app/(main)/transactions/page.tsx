@@ -3,12 +3,14 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
-  DollarSign, TrendingUp, TrendingDown, Filter, Search, Plus,
+  TrendingUp, TrendingDown, Filter, Search, Plus,
   ChevronLeft, Calendar, ArrowUpDown, X, Wallet, PieChart,
   AlertCircle
 } from "lucide-react";
 import { FadeIn } from "@/components/motion/FadeIn";
 import { StaggeredList, StaggeredItem } from "@/components/motion/StaggeredList";
+import { useCurrency } from "@/hooks/useCurrency";
+import toast from "react-hot-toast";
 
 interface TransactionData {
   id: string;
@@ -76,6 +78,7 @@ export default function TransactionsPage() {
   });
   const [addError, setAddError] = useState("");
   const [addSaving, setAddSaving] = useState(false);
+  const { symbol } = useCurrency();
 
   const categories = Array.from(new Set(categoryBreakdown.map(c => c.category)));
 
@@ -90,6 +93,11 @@ export default function TransactionsPage() {
 
     try {
       const res = await fetch(`/api/transactions?${params}`);
+      if (!res.ok) {
+        if (res.status !== 401) toast.error("Failed to load transactions");
+        setLoading(false);
+        return;
+      }
       const data = await res.json();
       setTransactions(data.transactions || []);
       setTotalPages(data.pagination?.totalPages || 1);
@@ -104,10 +112,14 @@ export default function TransactionsPage() {
     fetchTransactions();
   }, [fetchTransactions]);
 
+  // Reset page to 1 when any filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [typeFilter, categoryFilter, dateFrom, dateTo]);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
-    fetchTransactions();
   };
 
   const clearFilters = () => {
@@ -151,6 +163,7 @@ export default function TransactionsPage() {
       }
       setShowAddModal(false);
       setAddForm({ type: "expense", amount: "", title: "", description: "", category: "", date: new Date().toISOString().split("T")[0] });
+      toast.success("Transaction added successfully");
       fetchTransactions();
     } catch (err: unknown) {
       setAddError(err instanceof Error ? err.message : "An error occurred");
@@ -160,9 +173,13 @@ export default function TransactionsPage() {
 
   const handleDeleteTransaction = async (id: string) => {
     try {
-      await fetch(`/api/transactions/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/transactions/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      toast.success("Transaction deleted");
       fetchTransactions();
-    } catch { /* ignore */ }
+    } catch {
+      toast.error("Failed to delete transaction");
+    }
   };
 
   const hasFilters = search || typeFilter || categoryFilter || dateFrom || dateTo;
@@ -214,14 +231,14 @@ export default function TransactionsPage() {
               <TrendingUp className="w-3.5 h-3.5" />
               <span>INCOME</span>
             </div>
-            <div className="text-xl lg:text-2xl font-bold text-gray-900">${summary.totalIncome.toFixed(0)}</div>
+            <div className="text-xl lg:text-2xl font-bold text-gray-900">{symbol}{summary.totalIncome.toFixed(0)}</div>
           </div>
           <div className="bg-red-50/80 rounded-2xl p-4 lg:p-5">
             <div className="flex items-center space-x-2 text-red-500 font-semibold text-[10px] tracking-wider mb-2">
               <TrendingDown className="w-3.5 h-3.5" />
               <span>EXPENSE</span>
             </div>
-            <div className="text-xl lg:text-2xl font-bold text-gray-900">${summary.totalExpense.toFixed(0)}</div>
+            <div className="text-xl lg:text-2xl font-bold text-gray-900">{symbol}{summary.totalExpense.toFixed(0)}</div>
           </div>
           <div className={`rounded-2xl p-4 lg:p-5 ${summary.balance >= 0 ? "bg-blue-50/80" : "bg-orange-50/80"}`}>
             <div className={`flex items-center space-x-2 font-semibold text-[10px] tracking-wider mb-2 ${summary.balance >= 0 ? "text-blue-600" : "text-orange-600"}`}>
@@ -229,7 +246,7 @@ export default function TransactionsPage() {
               <span>BALANCE</span>
             </div>
             <div className="text-xl lg:text-2xl font-bold text-gray-900">
-              {summary.balance >= 0 ? "+" : "-"}${Math.abs(summary.balance).toFixed(0)}
+              {summary.balance >= 0 ? "+" : "-"}{symbol}{Math.abs(summary.balance).toFixed(0)}
             </div>
           </div>
         </div>
@@ -342,7 +359,7 @@ export default function TransactionsPage() {
                     </div>
                     <div className="flex items-center space-x-3">
                       <span className={`text-base font-bold ${txn.type === "income" ? "text-emerald-500" : "text-red-500"}`}>
-                        {txn.type === "income" ? "+" : "-"}${txn.amount.toFixed(2)}
+                        {txn.type === "income" ? "+" : "-"}{symbol}{txn.amount.toFixed(2)}
                       </span>
                       <button onClick={() => handleDeleteTransaction(txn.id)}
                         className="p-1 text-gray-300 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100">
@@ -355,8 +372,8 @@ export default function TransactionsPage() {
             </StaggeredList>
           ) : (
             <div className="text-center py-16 px-4">
-              <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <DollarSign className="w-8 h-8 text-blue-300" />
+              <div className="text-5xl mb-4">
+                {hasFilters ? "🔍" : "💰"}
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2">
                 {hasFilters ? "No transactions found" : "No transactions yet"}
@@ -405,7 +422,7 @@ export default function TransactionsPage() {
                   const incomeH = (data.income / maxMonthly) * 100;
                   const expenseH = (data.expense / maxMonthly) * 100;
                   return (
-                    <div key={label} className="flex flex-col items-center flex-1 group" title={`${label}: Income $${data.income.toFixed(0)}, Expense $${data.expense.toFixed(0)}`}>
+                    <div key={label} className="flex flex-col items-center flex-1 group" title={`${label}: Income ${symbol}${data.income.toFixed(0)}, Expense ${symbol}${data.expense.toFixed(0)}`}>
                       <div className="flex items-end space-x-0.5 w-full justify-center h-24">
                         <div className="w-1.5 bg-emerald-400 rounded-t transition-all" style={{ height: `${Math.max(incomeH, 2)}%` }} />
                         <div className="w-1.5 bg-red-400 rounded-t transition-all" style={{ height: `${Math.max(expenseH, 2)}%` }} />
@@ -438,7 +455,7 @@ export default function TransactionsPage() {
                         key={cat.category}
                         className={`${categoryColors[i % categoryColors.length]} transition-all`}
                         style={{ width: `${(cat.total / totalExpenseForPie) * 100}%` }}
-                        title={`${cat.category}: $${cat.total.toFixed(0)}`}
+                        title={`${cat.category}: ${symbol}${cat.total.toFixed(0)}`}
                       />
                     ))}
                   </div>
@@ -453,7 +470,7 @@ export default function TransactionsPage() {
                           </span>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <span className="text-xs font-semibold text-gray-900">${cat.total.toFixed(0)}</span>
+                          <span className="text-xs font-semibold text-gray-900">{symbol}{cat.total.toFixed(0)}</span>
                           <span className="text-[10px] text-gray-400">
                             {((cat.total / totalExpenseForPie) * 100).toFixed(0)}%
                           </span>
@@ -482,7 +499,7 @@ export default function TransactionsPage() {
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">Avg. expense</span>
                   <span className="text-sm font-bold text-gray-900">
-                    ${expenseCategories.length > 0
+                    {symbol}{expenseCategories.length > 0
                       ? (summary.totalExpense / expenseCategories.reduce((s, c) => s + c.count, 0) || 0).toFixed(2)
                       : "0.00"}
                   </span>
@@ -533,7 +550,7 @@ export default function TransactionsPage() {
                 <div>
                   <label className="text-xs font-medium text-gray-500 block mb-1">Amount <span className="text-red-400">*</span></label>
                   <input type="number" step="0.01" value={addForm.amount} onChange={(e) => setAddForm({ ...addForm, amount: e.target.value })}
-                    placeholder="$0.00" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand" />
+                    placeholder="0.00" className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand" />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-500 block mb-1">Date</label>

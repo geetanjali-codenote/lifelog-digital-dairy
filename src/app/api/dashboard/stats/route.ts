@@ -39,16 +39,22 @@ export async function GET() {
 
     const topMood = moodCounts.length > 0 ? moodCounts[0].mood : null
 
+    const mappedEntries = recentEntries.map((entry) => ({
+      id: entry.id,
+      title: entry.title,
+      content: entry.content,
+      mood: entry.mood,
+      memoryDate: entry.entryDate,
+      expense: entry.expense ? Number(entry.expense) : null,
+      tags: entry.entryTags.map((et) => et.tag),
+    }))
+
     return NextResponse.json({
-      totalEntries,
+      totalMemories: totalEntries,
       totalExpenses: expenseResult._sum.expense ? Number(expenseResult._sum.expense) : 0,
       streak,
       topMood,
-      recentEntries: recentEntries.map((entry) => ({
-        ...entry,
-        tags: entry.entryTags.map((et) => et.tag),
-        expense: entry.expense ? Number(entry.expense) : null,
-      })),
+      recentMemories: mappedEntries,
     })
   } catch (error) {
     if (error instanceof AuthError) return unauthorizedResponse()

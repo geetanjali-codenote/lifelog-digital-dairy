@@ -5,7 +5,7 @@ import prisma from "@/lib/prisma"
 import { requireAuthUserId, AuthError, unauthorizedResponse } from "@/lib/auth-utils"
 
 const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1),
+  currentPassword: z.string().optional(),
   newPassword: z.string().min(8, "New password must be at least 8 characters"),
 })
 
@@ -20,16 +20,14 @@ export async function PUT(request: NextRequest) {
       select: { passwordHash: true },
     })
 
-    if (!user?.passwordHash) {
-      return NextResponse.json(
-        { error: "Cannot change password for OAuth accounts" },
-        { status: 400 }
-      )
-    }
-
-    const isValid = await bcrypt.compare(data.currentPassword, user.passwordHash)
-    if (!isValid) {
-      return NextResponse.json({ error: "Current password is incorrect" }, { status: 400 })
+    if (user?.passwordHash) {
+      if (!data.currentPassword) {
+        return NextResponse.json({ error: "Current password is required" }, { status: 400 })
+      }
+      const isValid = await bcrypt.compare(data.currentPassword, user.passwordHash)
+      if (!isValid) {
+        return NextResponse.json({ error: "Current password is incorrect" }, { status: 400 })
+      }
     }
 
     const newHash = await bcrypt.hash(data.newPassword, 10)

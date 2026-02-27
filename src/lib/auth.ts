@@ -8,12 +8,13 @@ import prisma from '@/lib/prisma'
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as Adapter,
-  
+
   providers: [
     // Google OAuth Provider
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      allowDangerousEmailAccountLinking: true,
       authorization: {
         params: {
           prompt: 'consent',
@@ -22,7 +23,7 @@ export const authOptions: NextAuthOptions = {
         },
       },
     }),
-    
+
     // Email/Password Provider (Credentials)
     CredentialsProvider({
       name: 'credentials',
@@ -39,8 +40,12 @@ export const authOptions: NextAuthOptions = {
           where: { email: credentials.email },
         })
 
-        if (!user || !user.passwordHash) {
-          throw new Error('Invalid credentials')
+        if (!user) {
+          throw new Error('Email not found')
+        }
+
+        if (!user.passwordHash) {
+          throw new Error('Invalid credentials') // User has a Google account without a password
         }
 
         const isPasswordValid = await bcrypt.compare(
@@ -49,7 +54,7 @@ export const authOptions: NextAuthOptions = {
         )
 
         if (!isPasswordValid) {
-          throw new Error('Invalid credentials')
+          throw new Error('Incorrect password')
         }
 
         return {
@@ -64,15 +69,26 @@ export const authOptions: NextAuthOptions = {
 
   callbacks: {
     async session({ session, token }) {
-      if (token && session.user) {
-        session.user.id = token.sub!
+      if (token && session.user && token.sub) {
+        // Task 2: Invalidating Sessions on Account Deletion
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.sub },
+          select: { id: true }
+        })
+
+        // If the user doesn't exist in the DB, inject an error in the session payload
+        if (!dbUser) {
+          return { ...session, error: "UserDeleted" } as any
+        }
+
+        session.user.id = token.sub
         session.user.email = token.email!
         session.user.name = token.name
         session.user.image = token.picture
       }
       return session
     },
-    
+
     async jwt({ token, user, account }) {
       if (user) {
         token.sub = user.id
@@ -80,11 +96,11 @@ export const authOptions: NextAuthOptions = {
         token.name = user.name
         token.picture = user.image
       }
-      
+
       if (account?.provider) {
         token.provider = account.provider
       }
-      
+
       return token
     },
   },

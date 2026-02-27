@@ -22,6 +22,7 @@ model User {
   image         String?   @db.Text
   passwordHash  String?   @map("password_hash") @db.Text // Optional for OAuth users
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp()
+  currency      String    @default("INR") @db.VarChar(10)
 
   // Relations
   accounts      Account[]

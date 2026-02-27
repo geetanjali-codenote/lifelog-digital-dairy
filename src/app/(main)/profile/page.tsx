@@ -4,11 +4,13 @@ import Link from "next/link";
 import { useEffect, useState, useRef } from "react";
 import { signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, Settings, Calendar, Edit3, Banknote, User, Lock, Bell, ChevronRight, LogOut, Check, X, Camera, Flame } from "lucide-react";
+import { ChevronLeft, Settings, Calendar, Edit3, Banknote, User, Lock, Bell, ChevronRight, LogOut, Check, X, Camera, Flame, Coins } from "lucide-react";
 import { FadeIn } from "@/components/motion/FadeIn";
 import { StaggeredList, StaggeredItem } from "@/components/motion/StaggeredList";
 import { HoverLift } from "@/components/motion/HoverLift";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { CURRENCIES, getCurrencySymbol } from "@/lib/currency";
+import toast from "react-hot-toast";
 
 interface ProfileData {
   id: string;
@@ -19,6 +21,8 @@ interface ProfileData {
   entryCount: number;
   totalExpenses: number;
   streak: number;
+  hasPassword?: boolean;
+  currency?: string;
 }
 
 export default function ProfilePage() {
@@ -34,6 +38,9 @@ export default function ProfilePage() {
   const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
+  const [currencyModal, setCurrencyModal] = useState(false);
+  const [selectedCurrency, setSelectedCurrency] = useState("INR");
+  const [savingCurrency, setSavingCurrency] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -43,6 +50,7 @@ export default function ProfilePage() {
         setProfile(data);
         setEditName(data.name || "");
         setEditImage(data.image || null);
+        if (data.currency) setSelectedCurrency(data.currency);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -75,6 +83,7 @@ export default function ProfilePage() {
 
   const handleSaveProfile = async () => {
     setSaving(true);
+    const loadingToast = toast.loading("Updating profile...");
     try {
       const body: Record<string, unknown> = { name: editName };
       if (imagePreview) {
@@ -88,9 +97,14 @@ export default function ProfilePage() {
       if (res.ok) {
         const updated = await res.json();
         setProfile((prev) => prev ? { ...prev, name: updated.name, image: updated.image } : prev);
+        toast.success("Profile updated successfully!", { id: loadingToast });
         setEditModal(false);
+      } else {
+        throw new Error("Failed to update profile");
       }
-    } catch { /* ignore */ }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "An error occurred", { id: loadingToast });
+    }
     setSaving(false);
   };
 
@@ -104,6 +118,7 @@ export default function ProfilePage() {
       return;
     }
 
+    const loadingToast = toast.loading("Changing password...");
     try {
       const res = await fetch("/api/profile/password", {
         method: "PUT",
@@ -115,18 +130,42 @@ export default function ProfilePage() {
       });
       const data = await res.json();
       if (!res.ok) {
+        toast.error(data.error || "Failed to change password", { id: loadingToast });
         setPasswordError(data.error || "Failed to change password");
       } else {
-        setPasswordSuccess("Password changed successfully!");
+        toast.success("Password changed successfully!", { id: loadingToast });
         setTimeout(() => {
           setPasswordModal(false);
           setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
-          setPasswordSuccess("");
         }, 1500);
       }
     } catch {
+      toast.error("An error occurred", { id: loadingToast });
       setPasswordError("An error occurred");
     }
+  };
+
+  const handleSaveCurrency = async (code: string) => {
+    setSavingCurrency(true);
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currency: code }),
+      });
+      if (res.ok) {
+        setSelectedCurrency(code);
+        setProfile((prev) => prev ? { ...prev, currency: code } : prev);
+        sessionStorage.setItem("user-currency", code);
+        toast.success(`Currency changed to ${code}`);
+        setCurrencyModal(false);
+      } else {
+        toast.error("Failed to update currency");
+      }
+    } catch {
+      toast.error("An error occurred");
+    }
+    setSavingCurrency(false);
   };
 
   const handleSignOut = async () => {
@@ -226,7 +265,7 @@ export default function ProfilePage() {
                   <div className="w-10 h-10 bg-indigo-50 text-indigo-500 rounded-full flex items-center justify-center mb-3">
                     <Banknote className="w-5 h-5" strokeWidth={2} />
                   </div>
-                  <span className="text-xl font-bold text-gray-900 mb-0.5">${profile?.totalExpenses?.toFixed(0) ?? "0"}</span>
+                  <span className="text-xl font-bold text-gray-900 mb-0.5">{getCurrencySymbol(selectedCurrency)}{profile?.totalExpenses?.toFixed(0) ?? "0"}</span>
                   <span className="text-[9px] font-bold tracking-wider text-gray-500">SPENT</span>
                 </div>
               </HoverLift>
@@ -260,19 +299,19 @@ export default function ProfilePage() {
               <StaggeredItem>
                 <SettingsLink
                   icon={<Lock className="w-5 h-5" />}
-                  title="Change Password"
-                  description="Update your security credentials"
+                  title={profile?.hasPassword ? "Change Password" : "Create Password"}
+                  description={profile?.hasPassword ? "Update your security credentials" : "Set a password for your account"}
                   bgColor="bg-gray-200 text-gray-600"
                   onClick={() => setPasswordModal(true)}
                 />
               </StaggeredItem>
               <StaggeredItem>
                 <SettingsLink
-                  icon={<Bell className="w-5 h-5" />}
-                  title="Notifications"
-                  description="Manage alerts and reminders"
-                  bgColor="bg-gray-200 text-gray-600"
-                  onClick={() => router.push("/notifications")}
+                  icon={<Coins className="w-5 h-5" />}
+                  title="Currency"
+                  description={`Currently set to ${selectedCurrency} (${getCurrencySymbol(selectedCurrency)})`}
+                  bgColor="bg-emerald-100 text-emerald-600"
+                  onClick={() => setCurrencyModal(true)}
                 />
               </StaggeredItem>
             </StaggeredList>
@@ -406,20 +445,24 @@ export default function ProfilePage() {
       {passwordModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setPasswordModal(false)}>
           <div className="bg-white dark:bg-surface rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Change Password</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-4">
+              {profile?.hasPassword ? "Change Password" : "Create Password"}
+            </h3>
             {passwordError && <div className="bg-red-50 text-red-700 px-4 py-2 rounded-lg text-sm mb-4">{passwordError}</div>}
             {passwordSuccess && <div className="bg-green-50 text-green-700 px-4 py-2 rounded-lg text-sm mb-4">{passwordSuccess}</div>}
             <form onSubmit={handleChangePassword} className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">Current Password</label>
-                <input
-                  type="password"
-                  required
-                  value={passwordForm.currentPassword}
-                  onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
-                />
-              </div>
+              {profile?.hasPassword && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">Current Password</label>
+                  <input
+                    type="password"
+                    required
+                    value={passwordForm.currentPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
+                  />
+                </div>
+              )}
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-1">New Password</label>
                 <input
@@ -446,10 +489,49 @@ export default function ProfilePage() {
                   Cancel
                 </button>
                 <button type="submit" className="flex-1 py-3 bg-brand text-white rounded-xl font-medium hover:bg-brand-dark">
-                  Update
+                  {profile?.hasPassword ? "Update" : "Save"}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Currency Selector Modal */}
+      {currencyModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setCurrencyModal(false)}>
+          <div className="bg-white dark:bg-surface rounded-2xl p-6 w-full max-w-md max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-xl font-bold text-gray-900">Select Currency</h3>
+              <button onClick={() => setCurrencyModal(false)} className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+            <div className="overflow-y-auto space-y-1.5 flex-1 -mx-2 px-2">
+              {CURRENCIES.map((c) => (
+                <button
+                  key={c.code}
+                  onClick={() => handleSaveCurrency(c.code)}
+                  disabled={savingCurrency}
+                  className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl transition-colors ${
+                    selectedCurrency === c.code
+                      ? "bg-brand/10 border-2 border-brand"
+                      : "bg-gray-50 dark:bg-white/5 border-2 border-transparent hover:bg-gray-100 dark:hover:bg-white/10"
+                  } disabled:opacity-50`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <span className="text-2xl w-8 text-center font-medium">{c.symbol}</span>
+                    <div className="text-left">
+                      <span className="font-semibold text-gray-900 block text-sm">{c.name}</span>
+                      <span className="text-xs text-gray-500">{c.code}</span>
+                    </div>
+                  </div>
+                  {selectedCurrency === c.code && (
+                    <Check className="w-5 h-5 text-brand" />
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}

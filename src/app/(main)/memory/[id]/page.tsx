@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ChevronLeft, MoreHorizontal, Calendar, Sparkles, Heart, Wallet, Image as ImageIcon, Edit3, Trash2, TrendingUp, TrendingDown } from "lucide-react";
 import { FadeIn } from "@/components/motion/FadeIn";
+import toast from "react-hot-toast";
 
 interface TransactionData {
   id: string;
@@ -20,7 +21,7 @@ interface MemoryDetail {
   title: string | null;
   content: string;
   mood: string;
-  memoryDate: string;
+  entryDate: string;
   highlight: string | null;
   gratitude: string | null;
   expense: number | null;
@@ -68,12 +69,18 @@ export default function MemoryDetailPage() {
 
   const handleDelete = async () => {
     setDeleting(true);
+    const loadingToast = toast.loading("Deleting memory...");
     try {
       const res = await fetch(`/api/memories/${params.id}`, { method: "DELETE" });
       if (res.ok) {
+        toast.success("Memory deleted", { id: loadingToast });
         router.push("/dashboard");
+      } else {
+        throw new Error("Failed to delete memory");
       }
-    } catch { /* ignore */ }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "An error occurred", { id: loadingToast });
+    }
     setDeleting(false);
   };
 
@@ -105,12 +112,12 @@ export default function MemoryDetailPage() {
     );
   }
 
-  const date = new Date(memory.memoryDate).toLocaleDateString("en-US", {
+  const date = new Date(memory.entryDate).toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
   });
-  const title = memory.title || "Untitled Memory";
+  const title = memory.title || `Your Reflection on ${date}`;
 
   return (
     <div className="flex flex-col min-h-full pb-8 px-4 pt-6 overflow-y-auto w-full relative lg:px-8 lg:pt-10 lg:max-w-5xl lg:mx-auto">

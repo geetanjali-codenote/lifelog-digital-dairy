@@ -1,5 +1,6 @@
 import { BottomNav } from "@/components/BottomNav";
 import { DesktopSidebar } from "@/components/DesktopSidebar";
+import { Chatbot } from "@/components/Chatbot";
 
 export default function MainLayout({
   children,
@@ -20,6 +21,9 @@ export default function MainLayout({
       <div className="lg:hidden">
         <BottomNav />
       </div>
+
+      {/* Global AI Chatbot */}
+      <Chatbot />
     </div>
   );
 }

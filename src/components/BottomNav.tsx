@@ -3,14 +3,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Book, User, Bell, BarChart3, Sparkles, Wallet } from "lucide-react";
+import { Home, Book, User, Bell, BarChart3, Sparkles, Wallet, Image as ImageIcon } from "lucide-react";
 import clsx from "clsx";
 
 const navItems = [
   { name: "Home", href: "/dashboard", icon: Home },
   { name: "Memories", href: "/timeline", icon: Book },
   { name: "Money", href: "/transactions", icon: Wallet },
-  { name: "Highlights", href: "/highlight", icon: Sparkles },
+  { name: "Gallery", href: "/gallery", icon: ImageIcon },
   { name: "Profile", href: "/profile", icon: User },
 ];
 
