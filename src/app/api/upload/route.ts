@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
+import { put } from "@vercel/blob";
 import { randomUUID } from "crypto";
 import { requireAuthUserId, AuthError, unauthorizedResponse } from "@/lib/auth-utils";
 
-const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = [
   "image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml",
@@ -26,8 +24,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Maximum 10 files at once" }, { status: 400 });
     }
 
-    await mkdir(UPLOAD_DIR, { recursive: true });
-
     const urls: string[] = [];
 
     for (const file of files) {
@@ -47,12 +43,12 @@ export async function POST(request: NextRequest) {
 
       const ext = file.name.split(".").pop()?.toLowerCase() || "bin";
       const filename = `${randomUUID()}.${ext}`;
-      const filepath = path.join(UPLOAD_DIR, filename);
 
-      const buffer = Buffer.from(await file.arrayBuffer());
-      await writeFile(filepath, buffer);
+      const blob = await put(filename, file, {
+        access: "public",
+      });
 
-      urls.push(`/uploads/${filename}`);
+      urls.push(blob.url);
     }
 
     return NextResponse.json({ urls });
