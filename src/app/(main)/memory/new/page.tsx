@@ -12,7 +12,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 import toast from "react-hot-toast";
 import { EmojiPicker, getMoodFromEmoji, getEmojiForMood } from "@/components/EmojiPicker";
 
-const quickMoods = [
+const defaultMoods = [
   { value: "happy", emoji: "😊", label: "Happy" },
   { value: "excited", emoji: "🤩", label: "Excited" },
   { value: "peaceful", emoji: "😌", label: "Peaceful" },
@@ -70,19 +70,32 @@ export default function NewEntryPage() {
   const [showMoodPicker, setShowMoodPicker] = useState(false);
   const [showTextEmojiPicker, setShowTextEmojiPicker] = useState(false);
   const [moodEmoji, setMoodEmoji] = useState("😊");
+  const [customMoods, setCustomMoods] = useState<typeof defaultMoods>([]);
+  const [newMoodInput, setNewMoodInput] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const moodPickerBtnRef = useRef<HTMLButtonElement>(null);
   const textEmojiRef = useRef<HTMLButtonElement>(null);
   const [form, setForm] = useState({
     title: "",
     content: "",
-    mood: "happy",
+    mood: null as string | null,
     entryDate: new Date().toISOString().split("T")[0],
     highlight: "",
     gratitude: "",
     tagIds: [] as string[],
     images: [] as string[],
   });
+
+  // Load custom moods from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("customMoods");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setCustomMoods(parsed);
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   useEffect(() => {
     fetch("/api/tags").then((r) => r.json()).then(setTags).catch(() => { });
@@ -94,10 +107,6 @@ export default function NewEntryPage() {
 
     if (!form.content.trim()) {
       setError("Please write something in your entry.");
-      return;
-    }
-    if (!form.mood) {
-      setError("Please select a mood.");
       return;
     }
 
@@ -119,7 +128,7 @@ export default function NewEntryPage() {
         body: JSON.stringify({
           title: form.title || undefined,
           content: form.content,
-          mood: form.mood,
+          mood: form.mood || undefined,
           entryDate: form.entryDate,
           highlight: form.highlight || undefined,
           gratitude: form.gratitude || undefined,
@@ -277,59 +286,113 @@ export default function NewEntryPage() {
               {/* Mood */}
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-3">
-                  What&apos;s your mood? Tell us! <span className="text-red-400">*</span>
+                  What&apos;s your mood? Tell us! <span className="text-gray-400 text-xs">(Optional)</span>
                 </label>
 
                 {/* Selected mood display */}
-                <div className="flex items-center space-x-3 mb-3">
-                  <div className="relative">
-                    <button
-                      ref={moodPickerBtnRef}
-                      type="button"
-                      onClick={() => setShowMoodPicker(!showMoodPicker)}
-                      className="w-14 h-14 flex items-center justify-center text-3xl bg-brand-light/50 border-2 border-brand rounded-2xl hover:scale-105 transition-all"
-                    >
-                      {moodEmoji}
-                    </button>
-                    {showMoodPicker && (
-                      <div className="absolute top-16 left-0 z-50">
-                        <EmojiPicker
-                          onSelect={(emoji) => {
-                            setMoodEmoji(emoji);
-                            const moodName = getMoodFromEmoji(emoji);
-                            setForm((prev) => ({ ...prev, mood: moodName }));
-                            setShowMoodPicker(false);
-                          }}
-                          onClose={() => setShowMoodPicker(false)}
-                        />
-                      </div>
-                    )}
+                {form.mood && (
+                  <div className="flex items-center space-x-3 mb-3">
+                    <div className="relative">
+                      <button
+                        ref={moodPickerBtnRef}
+                        type="button"
+                        onClick={() => setShowMoodPicker(!showMoodPicker)}
+                        className="w-14 h-14 flex items-center justify-center text-3xl bg-brand-light/50 border-2 border-brand rounded-2xl hover:scale-105 transition-all"
+                      >
+                        {moodEmoji}
+                      </button>
+                      {showMoodPicker && (
+                        <div className="absolute top-16 left-0 z-50">
+                          <EmojiPicker
+                            onSelect={(emoji) => {
+                              setMoodEmoji(emoji);
+                              const moodName = getMoodFromEmoji(emoji);
+                              setForm((prev) => ({ ...prev, mood: moodName }));
+                              setShowMoodPicker(false);
+                            }}
+                            onClose={() => setShowMoodPicker(false)}
+                          />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900 capitalize">{form.mood}</p>
+                      <p className="text-xs text-gray-400">Tap emoji to change</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900 capitalize">{form.mood}</p>
-                    <p className="text-xs text-gray-400">Tap emoji to change</p>
-                  </div>
-                </div>
+                )}
 
                 {/* Quick mood chips */}
-                <div className="flex flex-wrap gap-1.5">
-                  {quickMoods.map((mood) => (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap gap-1.5">
+                    {[...defaultMoods, ...customMoods].map((mood) => (
+                      <button
+                        key={mood.value}
+                        type="button"
+                        onClick={() => {
+                          setForm({ ...form, mood: mood.value });
+                          setMoodEmoji(mood.emoji);
+                        }}
+                        className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-full border text-xs font-medium transition-all ${form.mood === mood.value
+                          ? "border-brand bg-brand-light/50 text-brand"
+                          : "border-gray-100 text-gray-500 hover:border-gray-200"
+                          }`}
+                      >
+                        <span>{mood.emoji}</span>
+                        <span>{mood.label}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Add custom mood input */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newMoodInput}
+                      onChange={(e) => setNewMoodInput(e.target.value)}
+                      placeholder="Add custom mood (e.g., 'inspired')"
+                      className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          if (newMoodInput.trim()) {
+                            const newMood = {
+                              value: newMoodInput.toLowerCase().replace(/\s+/g, "_"),
+                              emoji: "✨",
+                              label: newMoodInput,
+                            };
+                            const updated = [...customMoods, newMood];
+                            setCustomMoods(updated);
+                            localStorage.setItem("customMoods", JSON.stringify(updated));
+                            setForm({ ...form, mood: newMood.value });
+                            setMoodEmoji("✨");
+                            setNewMoodInput("");
+                          }
+                        }
+                      }}
+                    />
                     <button
-                      key={mood.value}
                       type="button"
                       onClick={() => {
-                        setForm({ ...form, mood: mood.value });
-                        setMoodEmoji(mood.emoji);
+                        if (newMoodInput.trim()) {
+                          const newMood = {
+                            value: newMoodInput.toLowerCase().replace(/\s+/g, "_"),
+                            emoji: "✨",
+                            label: newMoodInput,
+                          };
+                          const updated = [...customMoods, newMood];
+                          setCustomMoods(updated);
+                          localStorage.setItem("customMoods", JSON.stringify(updated));
+                          setForm({ ...form, mood: newMood.value });
+                          setMoodEmoji("✨");
+                          setNewMoodInput("");
+                        }
                       }}
-                      className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-full border text-xs font-medium transition-all ${form.mood === mood.value
-                        ? "border-brand bg-brand-light/50 text-brand"
-                        : "border-gray-100 text-gray-500 hover:border-gray-200"
-                        }`}
+                      className="px-4 py-2 bg-brand text-white rounded-lg text-xs font-medium hover:bg-brand-dark transition-colors"
                     >
-                      <span>{mood.emoji}</span>
-                      <span>{mood.label}</span>
+                      <Plus className="w-4 h-4" />
                     </button>
-                  ))}
+                  </div>
                 </div>
               </div>
 

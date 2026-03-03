@@ -92,7 +92,7 @@ model DiaryEntry {
   title        String?  @db.VarChar(255)
   entryDate    DateTime @default(now()) @map("entry_date") @db.Date
   content      String   @db.Text
-  mood         String   @db.VarChar(50)
+  mood         String?  @db.VarChar(50)
   highlight    String?  @db.Text
   gratitude    String?  @db.Text
   expense      Decimal? @db.Decimal(10, 2)

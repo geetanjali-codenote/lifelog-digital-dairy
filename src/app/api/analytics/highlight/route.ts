@@ -57,11 +57,13 @@ export async function GET(request: NextRequest) {
       tired: "😴",
     }
 
-    const moodSummary = moodCounts.map((m) => ({
-      mood: m.mood,
-      emoji: emojiMap[m.mood.toLowerCase()] || "🔹",
-      count: m._count.mood,
-    }))
+    const moodSummary = moodCounts
+      .filter((m) => m.mood !== null)
+      .map((m) => ({
+        mood: m.mood!,
+        emoji: emojiMap[m.mood!.toLowerCase()] || "🔹",
+        count: m._count.mood,
+      }))
 
     const topMood = moodSummary.length > 0 ? moodSummary[0].mood : "None"
 
