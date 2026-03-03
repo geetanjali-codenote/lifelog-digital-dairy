@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { BookOpen, Mail, ChevronLeft, CheckCircle2 } from "lucide-react";
+import { Mail, ChevronLeft, CheckCircle2 } from "lucide-react";
 import { FadeIn } from "@/components/motion/FadeIn";
 import toast from "react-hot-toast";
 
@@ -10,6 +10,7 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [devResetLink, setDevResetLink] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,8 +31,9 @@ export default function ForgotPasswordPage() {
         return;
       }
 
+      if (data.resetLink) setDevResetLink(data.resetLink);
       setIsSuccess(true);
-      toast.success("Reset link sent to your email");
+      toast.success("Reset link sent!");
     } catch {
       toast.error("An error occurred");
     } finally {
@@ -68,6 +70,14 @@ export default function ForgotPasswordPage() {
               <p className="text-emerald-600 text-sm">
                 We&apos;ve sent a password reset link to <span className="font-semibold">{email}</span>. The link will expire in 1 hour.
               </p>
+              {devResetLink && (
+                <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                  <p className="text-amber-700 text-xs font-semibold mb-1">Dev Mode — Reset Link:</p>
+                  <Link href={devResetLink} className="text-brand text-sm font-medium hover:underline break-all">
+                    Click here to reset password
+                  </Link>
+                </div>
+              )}
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5">

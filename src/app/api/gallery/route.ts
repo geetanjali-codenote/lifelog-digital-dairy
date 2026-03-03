@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
 
     const tag = searchParams.get("tag");
     const filterDate = searchParams.get("date"); // "this_month", "this_year", "this_week", "all", or "YYYY-MM-DD"
+    const showLocked = searchParams.get("locked") === "true";
     const page = parseInt(searchParams.get("page") || "1");
     const limit = Math.min(parseInt(searchParams.get("limit") || "30"), 60);
     const skip = (page - 1) * limit;
@@ -40,21 +41,25 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const attachmentWhere: Record<string, unknown> = { entry: entryWhere };
+    if (showLocked) {
+      attachmentWhere.isLocked = true;
+    } else {
+      attachmentWhere.isLocked = false;
+    }
+
     // Count total attachments matching filters
     const total = await prisma.attachment.count({
-      where: {
-        entry: entryWhere,
-      },
+      where: attachmentWhere,
     });
 
     // Fetch attachments with entry data
     const attachments = await prisma.attachment.findMany({
-      where: {
-        entry: entryWhere,
-      },
+      where: attachmentWhere,
       select: {
         id: true,
         fileUrl: true,
+        isLocked: true,
         createdAt: true,
         entry: {
           select: {
@@ -80,6 +85,7 @@ export async function GET(request: NextRequest) {
     const media = attachments.map((a) => ({
       id: a.id,
       fileUrl: a.fileUrl,
+      isLocked: a.isLocked,
       createdAt: a.createdAt.toISOString(),
       entry: {
         id: a.entry.id,
@@ -109,6 +115,11 @@ export async function GET(request: NextRequest) {
       select: { id: true, name: true }
     });
 
+    // Count locked items for badge
+    const lockedCount = showLocked ? 0 : await prisma.attachment.count({
+      where: { entry: { userId }, isLocked: true },
+    });
+
     return NextResponse.json({
       media,
       filters: {
@@ -119,6 +130,7 @@ export async function GET(request: NextRequest) {
         totalPages: Math.ceil(total / limit),
         total,
       },
+      lockedCount,
     });
   } catch (error) {
     if (error instanceof AuthError) return unauthorizedResponse();

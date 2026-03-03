@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, Book, BarChart3, User, Plus, BookOpen, LogOut, Bell, Sparkles, Wallet, Image as ImageIcon, Brain } from "lucide-react";
+import { Home, Book, BarChart3, User, Plus, BookOpen, LogOut, Bell, Sparkles, Wallet, Image as ImageIcon, Brain, Settings } from "lucide-react";
 import { useSession, signOut } from "next-auth/react";
 import clsx from "clsx";
 import { motion } from "framer-motion";
@@ -17,6 +17,7 @@ const navItems = [
   { name: "Gallery", href: "/gallery", icon: ImageIcon },
   { name: "Transactions", href: "/transactions", icon: Wallet },
   { name: "Stats", href: "/stats", icon: BarChart3 },
+  { name: "Settings", href: "/settings", icon: Settings },
   { name: "Notifications", href: "/notifications", icon: Bell },
   { name: "Profile", href: "/profile", icon: User },
 ];
@@ -32,6 +33,13 @@ export function DesktopSidebar() {
       .then((res) => res.json())
       .then((data) => setUnreadCount(data.unreadCount || 0))
       .catch(() => { });
+
+    const handleCountUpdate = (e: Event) => {
+      const count = (e as CustomEvent).detail?.unreadCount;
+      if (typeof count === "number") setUnreadCount(count);
+    };
+    window.addEventListener("notification-count", handleCountUpdate);
+    return () => window.removeEventListener("notification-count", handleCountUpdate);
   }, []);
 
   const handleLogout = async () => {

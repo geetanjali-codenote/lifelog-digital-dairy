@@ -206,9 +206,9 @@ export default function ProfilePage() {
           <ChevronLeft className="w-6 h-6 text-gray-900" />
         </Link>
         <span className="font-bold text-gray-900 text-lg">Profile</span>
-        <button className="p-2 -mr-2 hover:bg-gray-100 rounded-full transition-colors">
+        <Link href="/settings" className="p-2 -mr-2 hover:bg-gray-100 rounded-full transition-colors">
           <Settings className="w-6 h-6 text-gray-900" />
-        </button>
+        </Link>
       </div>
 
       {/* Desktop Header */}
@@ -313,6 +313,16 @@ export default function ProfilePage() {
                   bgColor="bg-emerald-100 text-emerald-600"
                   onClick={() => setCurrencyModal(true)}
                 />
+              </StaggeredItem>
+              <StaggeredItem>
+                <Link href="/settings" className="block w-full">
+                  <SettingsLink
+                    icon={<Settings className="w-5 h-5" />}
+                    title="Application Settings"
+                    description="Theme, gallery layout, notifications, and more"
+                    bgColor="bg-indigo-100 text-indigo-600"
+                  />
+                </Link>
               </StaggeredItem>
             </StaggeredList>
           </div>
@@ -513,11 +523,10 @@ export default function ProfilePage() {
                   key={c.code}
                   onClick={() => handleSaveCurrency(c.code)}
                   disabled={savingCurrency}
-                  className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl transition-colors ${
-                    selectedCurrency === c.code
+                  className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl transition-colors ${selectedCurrency === c.code
                       ? "bg-brand/10 border-2 border-brand"
                       : "bg-gray-50 dark:bg-white/5 border-2 border-transparent hover:bg-gray-100 dark:hover:bg-white/10"
-                  } disabled:opacity-50`}
+                    } disabled:opacity-50`}
                 >
                   <div className="flex items-center space-x-3">
                     <span className="text-2xl w-8 text-center font-medium">{c.symbol}</span>

@@ -4,7 +4,13 @@ import { requireAuthUserId, AuthError, unauthorizedResponse } from "@/lib/auth-u
 import { z } from "zod";
 
 const uploadSchema = z.object({
-  urls: z.array(z.string().min(1)).min(1),
+  urls: z.array(
+    z.object({
+      url: z.string().min(1),
+      title: z.string().optional(),
+      description: z.string().optional(),
+    })
+  ).min(1),
   entryDate: z.string().optional(),
   tagIds: z.array(z.string()).optional(),
 });
@@ -26,7 +32,11 @@ export async function POST(request: NextRequest) {
         mood: "neutral",
         entryDate,
         attachments: {
-          create: data.urls.map((url) => ({ fileUrl: url })),
+          create: data.urls.map((item) => ({
+            fileUrl: item.url,
+            title: item.title,
+            description: item.description,
+          })),
         },
         ...(data.tagIds && data.tagIds.length > 0
           ? {

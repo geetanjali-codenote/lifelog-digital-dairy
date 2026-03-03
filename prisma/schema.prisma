@@ -23,6 +23,7 @@ model User {
   passwordHash  String?   @map("password_hash") @db.Text // Optional for OAuth users
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp()
   currency      String    @default("INR") @db.VarChar(10)
+  vaultPin      String?   @map("vault_pin") @db.Text
 
   // Relations
   accounts      Account[]
@@ -180,10 +181,13 @@ model EntryTag {
 // ============================================
 
 model Attachment {
-  id        String   @id @default(uuid()) @db.Uuid
-  entryId   String   @map("entry_id") @db.Uuid
-  fileUrl   String   @map("file_url") @db.Text
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp()
+  id          String   @id @default(uuid()) @db.Uuid
+  entryId     String   @map("entry_id") @db.Uuid
+  fileUrl     String   @map("file_url") @db.Text
+  title       String?  @db.VarChar(255)
+  description String?  @db.Text
+  isLocked    Boolean  @default(false) @map("is_locked")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp()
 
   // Relations
   entry DiaryEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)

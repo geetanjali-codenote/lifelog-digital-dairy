@@ -56,10 +56,19 @@ export default function NotificationsPage() {
     } catch { /* ignore */ }
   }, []);
 
-  const saveSettings = (newSettings: typeof settings) => {
-    setSettings(newSettings);
-    localStorage.setItem("lifelog-notification-settings", JSON.stringify(newSettings));
-    toast.success("Settings saved");
+  // Notify sidebar of unread count changes
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("notification-count", { detail: { unreadCount } }));
+  }, [unreadCount]);
+
+  const toggleSetting = (key: keyof typeof settings) => {
+    setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const saveSettings = () => {
+    localStorage.setItem("lifelog-notification-settings", JSON.stringify(settings));
+    toast.success("Settings updated");
+    setShowSettings(false);
   };
 
   const fetchNotifications = useCallback(async () => {
@@ -291,7 +300,7 @@ export default function NotificationsPage() {
                     </div>
                   </div>
                   <button
-                    onClick={() => saveSettings({ ...settings, [item.key]: !settings[item.key as keyof typeof settings] })}
+                    onClick={() => toggleSetting(item.key as keyof typeof settings)}
                     className={`relative w-11 h-6 rounded-full transition-colors ${
                       settings[item.key as keyof typeof settings] ? "bg-brand" : "bg-gray-300"
                     }`}
@@ -305,7 +314,7 @@ export default function NotificationsPage() {
             </div>
 
             <button
-              onClick={() => setShowSettings(false)}
+              onClick={saveSettings}
               className="w-full mt-6 py-3 bg-brand text-white rounded-xl font-semibold hover:bg-brand-dark transition-colors"
             >
               Done

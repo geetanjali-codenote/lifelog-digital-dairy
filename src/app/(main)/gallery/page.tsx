@@ -3,8 +3,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
-  ChevronLeft, Image as ImageIcon, LayoutGrid, Columns, Plus, X,
-  CalendarDays, Tag as TagIcon, Loader2, UploadCloud, Trash2, CheckCircle2, Circle
+  ChevronLeft, Image as ImageIcon, LayoutGrid, Columns, X,
+  CalendarDays, Tag as TagIcon, Loader2, UploadCloud, Trash2, CheckCircle2, Circle,
+  Lock, LockOpen, LockKeyhole, ArrowLeft
 } from "lucide-react";
 import { FadeIn } from "@/components/motion/FadeIn";
 import { StaggeredList, StaggeredItem } from "@/components/motion/StaggeredList";
@@ -13,6 +14,9 @@ import toast from "react-hot-toast";
 interface MediaItem {
   id: string;
   fileUrl: string;
+  title: string | null;
+  description: string | null;
+  isLocked: boolean;
   createdAt: string;
   entry: {
     id: string;
@@ -68,7 +72,7 @@ export default function GalleryPage() {
 
   // Upload modal
   const [showUpload, setShowUpload] = useState(false);
-  const [uploadUrls, setUploadUrls] = useState<string[]>([]);
+  const [uploadUrls, setUploadUrls] = useState<{ url: string; title: string; description: string }[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadDate, setUploadDate] = useState(new Date().toISOString().split("T")[0]);
@@ -76,11 +80,26 @@ export default function GalleryPage() {
   const [allTags, setAllTags] = useState<TagData[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Vault / Lock state
+  const [showingLocked, setShowingLocked] = useState(false);
+  const [vaultUnlocked, setVaultUnlocked] = useState(false);
+  const [vaultHasPin, setVaultHasPin] = useState(false);
+  const [lockedCount, setLockedCount] = useState(0);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinMode, setPinMode] = useState<"setup" | "verify" | "setup-then-lock">("verify");
+  const [pinValue, setPinValue] = useState("");
+  const [pinConfirm, setPinConfirm] = useState("");
+  const [pinLoading, setPinLoading] = useState(false);
+  const [pinError, setPinError] = useState("");
+  const [locking, setLocking] = useState(false);
+  const pinInputRef = useRef<HTMLInputElement>(null);
+
   const fetchGallery = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams({ page: String(page), limit: "30" });
     if (tagFilter) params.set("tag", tagFilter);
     if (dateFilter && dateFilter !== "all") params.set("date", dateFilter);
+    if (showingLocked) params.set("locked", "true");
 
     try {
       const res = await fetch(`/api/gallery?${params}`);
@@ -93,11 +112,12 @@ export default function GalleryPage() {
       setFilters(data.filters || { moods: [], tags: [] });
       setTotalPages(data.pagination?.totalPages || 1);
       setTotal(data.pagination?.total || 0);
+      if (data.lockedCount !== undefined) setLockedCount(data.lockedCount);
     } catch {
       // ignore
     }
     setLoading(false);
-  }, [page, tagFilter, dateFilter]);
+  }, [page, tagFilter, dateFilter, showingLocked]);
 
   useEffect(() => {
     fetchGallery();
@@ -105,11 +125,19 @@ export default function GalleryPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [tagFilter, dateFilter]);
+  }, [tagFilter, dateFilter, showingLocked]);
 
   // Fetch tags for upload modal
   useEffect(() => {
     fetch("/api/tags").then((r) => r.json()).then(setAllTags).catch(() => { });
+  }, []);
+
+  // Check vault status on mount
+  useEffect(() => {
+    fetch("/api/gallery/vault/status")
+      .then((r) => r.json())
+      .then((data) => setVaultHasPin(data.hasPin))
+      .catch(() => { });
   }, []);
 
   const clearFilters = () => {
@@ -134,7 +162,7 @@ export default function GalleryPage() {
         return;
       }
       const { urls } = await res.json();
-      setUploadUrls((prev) => [...prev, ...urls]);
+      setUploadUrls((prev) => [...prev, ...urls.map((u: string) => ({ url: u, title: "", description: "" }))]);
     } catch {
       toast.error("Failed to upload files");
     } finally {
@@ -185,6 +213,150 @@ export default function GalleryPage() {
     setShowUpload(true);
   };
 
+  // Vault helpers
+  const openPinModal = (mode: "setup" | "verify" | "setup-then-lock") => {
+    setPinMode(mode);
+    setPinValue("");
+    setPinConfirm("");
+    setPinError("");
+    setShowPinModal(true);
+    setTimeout(() => pinInputRef.current?.focus(), 100);
+  };
+
+  const handlePinSubmit = async () => {
+    if (pinValue.length !== 4 || !/^\d{4}$/.test(pinValue)) {
+      setPinError("PIN must be exactly 4 digits");
+      return;
+    }
+
+    if ((pinMode === "setup" || pinMode === "setup-then-lock") && pinValue !== pinConfirm) {
+      setPinError("PINs do not match");
+      return;
+    }
+
+    setPinLoading(true);
+    setPinError("");
+
+    try {
+      if (pinMode === "setup" || pinMode === "setup-then-lock") {
+        const res = await fetch("/api/gallery/vault/setup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pin: pinValue }),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          setPinError(data.error || "Failed to set up PIN");
+          setPinLoading(false);
+          return;
+        }
+        setVaultHasPin(true);
+        setVaultUnlocked(true);
+        toast.success("Vault PIN created successfully!");
+        setShowPinModal(false);
+        if (pinMode === "setup-then-lock") {
+          await lockSelectedItems();
+        } else {
+          setShowingLocked(true);
+        }
+      } else {
+        const res = await fetch("/api/gallery/vault/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pin: pinValue }),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          setPinError(data.error || "Incorrect PIN");
+          setPinLoading(false);
+          return;
+        }
+        setVaultUnlocked(true);
+        setShowPinModal(false);
+        setShowingLocked(true);
+        toast.success("Vault unlocked!");
+      }
+    } catch {
+      setPinError("Something went wrong");
+    }
+    setPinLoading(false);
+  };
+
+  const handleOpenLockedFolder = () => {
+    if (vaultUnlocked) {
+      setShowingLocked(true);
+      setSelectionMode(false);
+      setSelectedIds([]);
+    } else if (!vaultHasPin) {
+      openPinModal("setup");
+    } else {
+      openPinModal("verify");
+    }
+  };
+
+  const handleBackToGallery = () => {
+    setShowingLocked(false);
+    setSelectionMode(false);
+    setSelectedIds([]);
+    setVaultUnlocked(false);
+  };
+
+  const lockSelectedItems = async () => {
+    if (selectedIds.length === 0) return;
+    setLocking(true);
+    try {
+      const res = await fetch("/api/gallery/lock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attachmentIds: selectedIds, isLocked: true }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(data.message || `Locked ${selectedIds.length} items`);
+        setSelectionMode(false);
+        setSelectedIds([]);
+        fetchGallery();
+      } else {
+        toast.error("Failed to lock items");
+      }
+    } catch {
+      toast.error("An error occurred");
+    }
+    setLocking(false);
+  };
+
+  const handleLockSelected = async () => {
+    if (!vaultHasPin) {
+      openPinModal("setup-then-lock");
+      return;
+    }
+    await lockSelectedItems();
+  };
+
+  const handleUnlockSelected = async () => {
+    if (selectedIds.length === 0) return;
+    setLocking(true);
+    try {
+      const res = await fetch("/api/gallery/lock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attachmentIds: selectedIds, isLocked: false }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        toast.success(data.message || `Unlocked ${selectedIds.length} items`);
+        setSelectionMode(false);
+        setSelectedIds([]);
+        fetchGallery();
+      } else {
+        toast.error("Failed to unlock items");
+      }
+    } catch {
+      toast.error("An error occurred");
+    }
+    setLocking(false);
+  };
+
   // Group media by month
   const grouped = media.reduce<Record<string, MediaItem[]>>((acc, item) => {
     const d = item.entry.entryDate;
@@ -195,29 +367,123 @@ export default function GalleryPage() {
   }, {});
   const groupedKeys = Object.keys(grouped).sort().reverse();
 
+  const renderMediaCard = (item: MediaItem, variant: "masonry" | "grid") => {
+    const isMasonry = variant === "masonry";
+    return (
+      <button
+        onClick={() => {
+          if (selectionMode) {
+            setSelectedIds(prev => prev.includes(item.id) ? prev.filter(id => id !== item.id) : [...prev, item.id]);
+          } else {
+            setLightboxItem(item);
+          }
+        }}
+        className={`group block relative ${isMasonry ? "rounded-2xl min-h-[140px]" : "rounded-xl aspect-square"} overflow-hidden shadow-sm hover:shadow-lg transition-all cursor-pointer bg-gray-100 dark:bg-white/5 w-full ${selectedIds.includes(item.id) ? "ring-4 ring-brand scale-[0.98]" : ""}`}
+      >
+        {isVideoUrl(item.fileUrl) ? (
+          <video src={item.fileUrl} className={`w-full ${isMasonry ? "h-auto" : "h-full"} object-cover`} muted preload="metadata" />
+        ) : (
+          <img src={item.fileUrl} alt={item.entry.title || "Memory"} className={`w-full ${isMasonry ? "h-auto" : "h-full"} object-cover transform group-hover:scale-105 transition-transform duration-500`} loading="lazy" />
+        )}
+        {isMasonry ? (
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3">
+            <p className="text-white text-sm font-bold truncate mb-1">
+              {item.title || item.entry.title || new Date(item.entry.entryDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            </p>
+            <div className="flex items-center space-x-2 text-[10px] text-white/80">
+              {item.entry.tags.slice(0, 2).map((t) => (
+                <span key={t.id} className="bg-white/20 px-1.5 py-0.5 rounded backdrop-blur-sm">{t.name}</span>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2.5 translate-y-full group-hover:translate-y-0 transition-transform duration-300">
+            <p className="text-white text-xs font-bold truncate">
+              {item.title || item.entry.title || new Date(item.entry.entryDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            </p>
+          </div>
+        )}
+        {selectionMode && (
+          <div className={`absolute ${isMasonry ? "top-3 left-3" : "top-2 left-2"} z-10`}>
+            {selectedIds.includes(item.id) ? (
+              <CheckCircle2 className={`${isMasonry ? "w-6 h-6" : "w-5 h-5"} text-brand bg-white rounded-full`} />
+            ) : (
+              <Circle className={`${isMasonry ? "w-6 h-6" : "w-5 h-5"} text-white/70 bg-black/20 rounded-full`} />
+            )}
+          </div>
+        )}
+        {showingLocked && (
+          <div className={`absolute ${isMasonry ? "top-3 right-3" : "top-2 right-2"} z-10`}>
+            <Lock className="w-4 h-4 text-white/70 drop-shadow" />
+          </div>
+        )}
+      </button>
+    );
+  };
+
   return (
     <div className="flex flex-col min-h-full pb-6 px-4 pt-6 overflow-y-auto w-full lg:px-8 lg:pt-10 lg:max-w-6xl lg:mx-auto">
       {/* Mobile Top App Bar */}
       <div className="flex justify-between items-center mb-6 h-8 lg:hidden">
-        <Link href="/dashboard" className="p-2 -ml-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-full transition-colors">
-          <ChevronLeft className="w-6 h-6 text-gray-900 dark:text-white" />
-        </Link>
-        <span className="font-bold text-gray-900 dark:text-white text-lg">My Photos</span>
-        <button onClick={openUploadModal} className="p-2 -mr-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-full transition-colors">
-          <UploadCloud className="w-5 h-5 text-brand" />
-        </button>
+        {showingLocked ? (
+          <button onClick={handleBackToGallery} className="p-2 -ml-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-full transition-colors">
+            <ArrowLeft className="w-6 h-6 text-gray-900 dark:text-white" />
+          </button>
+        ) : (
+          <Link href="/dashboard" className="p-2 -ml-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-full transition-colors">
+            <ChevronLeft className="w-6 h-6 text-gray-900 dark:text-white" />
+          </Link>
+        )}
+        <span className="font-bold text-gray-900 dark:text-white text-lg">
+          {showingLocked ? "Locked Folder" : "My Photos"}
+        </span>
+        {showingLocked ? (
+          <div className="w-10" />
+        ) : (
+          <div className="flex items-center space-x-1">
+            <button onClick={handleOpenLockedFolder} className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-full transition-colors relative">
+              <LockKeyhole className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+              {lockedCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-brand text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {lockedCount > 9 ? "9+" : lockedCount}
+                </span>
+              )}
+            </button>
+            <button onClick={openUploadModal} className="p-2 -mr-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-full transition-colors">
+              <UploadCloud className="w-5 h-5 text-brand" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Desktop Header */}
       <FadeIn className="hidden lg:flex justify-between items-end mb-8">
         <div>
-          <h1 className="flex items-center space-x-3 text-3xl font-bold text-gray-900 dark:text-white tracking-tight mb-2">
-            <ImageIcon className="w-8 h-8 text-brand" />
-            <span>My Photos</span>
-          </h1>
-          <p className="text-gray-500 text-sm">
-            {total > 0 ? `${total} photos & videos from your memories` : "All your uploaded images and videos in one place."}
-          </p>
+          {showingLocked ? (
+            <>
+              <button onClick={handleBackToGallery} className="flex items-center space-x-2 text-sm text-gray-500 hover:text-gray-900 dark:hover:text-white mb-2 transition-colors">
+                <ArrowLeft className="w-4 h-4" />
+                <span>Back to Gallery</span>
+              </button>
+              <h1 className="flex items-center space-x-3 text-3xl font-bold text-gray-900 dark:text-white tracking-tight mb-2">
+                <LockKeyhole className="w-8 h-8 text-amber-500" />
+                <span>Locked Folder</span>
+              </h1>
+              <p className="text-gray-500 text-sm">
+                {total > 0 ? `${total} locked photos & videos` : "No locked items yet."}
+              </p>
+            </>
+          ) : (
+            <>
+              <h1 className="flex items-center space-x-3 text-3xl font-bold text-gray-900 dark:text-white tracking-tight mb-2">
+                <ImageIcon className="w-8 h-8 text-brand" />
+                <span>My Photos</span>
+              </h1>
+              <p className="text-gray-500 text-sm">
+                {total > 0 ? `${total} photos & videos from your memories` : "All your uploaded images and videos in one place."}
+              </p>
+            </>
+          )}
         </div>
         <div className="flex items-center space-x-3">
           <div className="flex bg-gray-100 dark:bg-white/10 p-1 rounded-xl">
@@ -245,144 +511,269 @@ export default function GalleryPage() {
               >
                 Cancel
               </button>
-              <button
-                disabled={selectedIds.length === 0 || deleting}
-                onClick={async () => {
-                  try {
-                    setDeleting(true);
-                    const res = await fetch("/api/gallery/delete", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ mediaIds: selectedIds }),
-                    });
-                    if (res.ok) {
-                      toast.success(`Deleted ${selectedIds.length} items`);
-                      setSelectionMode(false);
-                      setSelectedIds([]);
-                      fetchGallery();
-                    } else {
-                      toast.error("Failed to delete items");
-                    }
-                  } catch {
-                    toast.error("An error occurred");
-                  }
-                  setDeleting(false);
-                }}
-                className="flex items-center space-x-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2.5 rounded-xl font-semibold shadow-md transition-all disabled:opacity-50"
-              >
-                {deleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
-                <span>Delete {selectedIds.length > 0 && `(${selectedIds.length})`}</span>
-              </button>
+              {showingLocked ? (
+                <button
+                  disabled={selectedIds.length === 0 || locking}
+                  onClick={handleUnlockSelected}
+                  className="flex items-center space-x-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-semibold shadow-md transition-all disabled:opacity-50"
+                >
+                  {locking ? <Loader2 className="w-5 h-5 animate-spin" /> : <LockOpen className="w-5 h-5" />}
+                  <span>Unlock {selectedIds.length > 0 && `(${selectedIds.length})`}</span>
+                </button>
+              ) : (
+                <>
+                  <button
+                    disabled={selectedIds.length === 0 || locking}
+                    onClick={handleLockSelected}
+                    className="flex items-center space-x-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-xl font-semibold shadow-md transition-all disabled:opacity-50"
+                  >
+                    {locking ? <Loader2 className="w-5 h-5 animate-spin" /> : <Lock className="w-5 h-5" />}
+                    <span>Lock {selectedIds.length > 0 && `(${selectedIds.length})`}</span>
+                  </button>
+                  <button
+                    disabled={selectedIds.length === 0 || deleting}
+                    onClick={async () => {
+                      try {
+                        setDeleting(true);
+                        const res = await fetch("/api/gallery/delete", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ mediaIds: selectedIds }),
+                        });
+                        if (res.ok) {
+                          toast.success(`Deleted ${selectedIds.length} items`);
+                          setSelectionMode(false);
+                          setSelectedIds([]);
+                          fetchGallery();
+                        } else {
+                          const data = await res.json();
+                          toast.error(data.error || "Failed to delete items");
+                        }
+                      } catch {
+                        toast.error("An error occurred");
+                      }
+                      setDeleting(false);
+                    }}
+                    className="flex items-center space-x-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2.5 rounded-xl font-semibold shadow-md transition-all disabled:opacity-50"
+                  >
+                    {deleting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+                    <span>Delete {selectedIds.length > 0 && `(${selectedIds.length})`}</span>
+                  </button>
+                </>
+              )}
             </div>
           ) : (
             <>
+              {!showingLocked && (
+                <button
+                  onClick={handleOpenLockedFolder}
+                  className="relative flex items-center space-x-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-white/10 dark:hover:bg-white/20 dark:text-gray-300 rounded-xl font-semibold transition-all"
+                >
+                  <LockKeyhole className="w-5 h-5" />
+                  <span>Locked</span>
+                  {lockedCount > 0 && (
+                    <span className="ml-1 w-5 h-5 bg-amber-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                      {lockedCount > 9 ? "9+" : lockedCount}
+                    </span>
+                  )}
+                </button>
+              )}
               <button
                 onClick={() => setSelectionMode(true)}
                 className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-white/10 dark:hover:bg-white/20 dark:text-gray-300 rounded-xl font-semibold transition-all"
               >
                 Select
               </button>
-              <button
-                onClick={openUploadModal}
-                className="flex items-center space-x-2 bg-brand text-white px-4 py-2.5 rounded-xl font-semibold shadow-md shadow-brand/20 hover:bg-brand-dark transition-all"
-              >
-                <UploadCloud className="w-5 h-5" />
-                <span>Upload</span>
-              </button>
+              {!showingLocked && (
+                <button
+                  onClick={openUploadModal}
+                  className="flex items-center space-x-2 bg-brand text-white px-4 py-2.5 rounded-xl font-semibold shadow-md shadow-brand/20 hover:bg-brand-dark transition-all"
+                >
+                  <UploadCloud className="w-5 h-5" />
+                  <span>Upload</span>
+                </button>
+              )}
             </>
           )}
         </div>
       </FadeIn>
 
-      {/* Mobile view toggle */}
+      {/* Mobile view toggle + selection bar */}
       <div className="flex items-center justify-between mb-4 lg:hidden">
-        <div className="flex bg-gray-100 dark:bg-white/10 p-1 rounded-xl">
-          <button
-            onClick={() => setViewMode("masonry")}
-            className={`p-1.5 rounded-lg transition-colors ${viewMode === "masonry" ? "bg-white dark:bg-white/20 text-brand shadow-sm" : "text-gray-500"}`}
-          >
-            <Columns className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setViewMode("grid")}
-            className={`p-1.5 rounded-lg transition-colors ${viewMode === "grid" ? "bg-white dark:bg-white/20 text-brand shadow-sm" : "text-gray-500"}`}
-          >
-            <LayoutGrid className="w-4 h-4" />
-          </button>
-        </div>
-        <span className="text-xs text-gray-400">{total} items</span>
+        {selectionMode ? (
+          <div className="flex items-center space-x-2 w-full">
+            <button
+              onClick={() => { setSelectionMode(false); setSelectedIds([]); }}
+              className="px-3 py-1.5 bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-gray-300 rounded-lg text-xs font-medium"
+            >
+              Cancel
+            </button>
+            {showingLocked ? (
+              <button
+                disabled={selectedIds.length === 0 || locking}
+                onClick={handleUnlockSelected}
+                className="flex items-center space-x-1 bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
+              >
+                {locking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LockOpen className="w-3.5 h-3.5" />}
+                <span>Unlock {selectedIds.length > 0 && `(${selectedIds.length})`}</span>
+              </button>
+            ) : (
+              <>
+                <button
+                  disabled={selectedIds.length === 0 || locking}
+                  onClick={handleLockSelected}
+                  className="flex items-center space-x-1 bg-amber-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
+                >
+                  {locking ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Lock className="w-3.5 h-3.5" />}
+                  <span>Lock {selectedIds.length > 0 && `(${selectedIds.length})`}</span>
+                </button>
+                <button
+                  disabled={selectedIds.length === 0 || deleting}
+                  onClick={async () => {
+                    try {
+                      setDeleting(true);
+                      const res = await fetch("/api/gallery/delete", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ mediaIds: selectedIds }),
+                      });
+                      if (res.ok) {
+                        toast.success(`Deleted ${selectedIds.length} items`);
+                        setSelectionMode(false);
+                        setSelectedIds([]);
+                        fetchGallery();
+                      } else {
+                        const data = await res.json();
+                        toast.error(data.error || "Failed to delete items");
+                      }
+                    } catch {
+                      toast.error("An error occurred");
+                    }
+                    setDeleting(false);
+                  }}
+                  className="flex items-center space-x-1 bg-red-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
+                >
+                  {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  <span>Delete</span>
+                </button>
+              </>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="flex bg-gray-100 dark:bg-white/10 p-1 rounded-xl">
+              <button
+                onClick={() => setViewMode("masonry")}
+                className={`p-1.5 rounded-lg transition-colors ${viewMode === "masonry" ? "bg-white dark:bg-white/20 text-brand shadow-sm" : "text-gray-500"}`}
+              >
+                <Columns className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setViewMode("grid")}
+                className={`p-1.5 rounded-lg transition-colors ${viewMode === "grid" ? "bg-white dark:bg-white/20 text-brand shadow-sm" : "text-gray-500"}`}
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setSelectionMode(true)}
+                className="px-3 py-1.5 bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300 rounded-lg text-xs font-medium"
+              >
+                Select
+              </button>
+              <span className="text-xs text-gray-400">{total} items</span>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Filter Bar */}
-      <FadeIn className="mb-6 space-y-3">
-        <div className="flex items-center space-x-2 pb-1 relative">
-          <CalendarDays className="w-4 h-4 text-gray-400 shrink-0" />
-          <select
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            className="px-3 py-1.5 rounded-full text-xs font-medium border bg-white dark:bg-white/5 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-white/10 outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
-          >
-            <option value="all">All Time</option>
-            <option value="this_week">This Week</option>
-            <option value="this_month">This Month</option>
-            <option value="last_30_days">Last 30 Days</option>
-            <option value="this_year">This Year</option>
-          </select>
-          {dateFilter !== "all" && (
-            <button onClick={() => setDateFilter("all")} className="px-3 py-1.5 rounded-full text-xs font-medium border bg-white dark:bg-white/5 text-gray-600 border-gray-200 hover:bg-gray-50 flex items-center">
-              <X className="w-3 h-3 mr-1" /> Clear Date
+      {!showingLocked && (
+        <FadeIn className="mb-6 space-y-3">
+          <div className="flex items-center space-x-2 pb-1 relative">
+            <CalendarDays className="w-4 h-4 text-gray-400 shrink-0" />
+            <select
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="px-3 py-1.5 rounded-full text-xs font-medium border bg-white dark:bg-white/5 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-white/10 outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
+            >
+              <option value="all">All Time</option>
+              <option value="this_week">This Week</option>
+              <option value="this_month">This Month</option>
+              <option value="last_30_days">Last 30 Days</option>
+              <option value="this_year">This Year</option>
+            </select>
+            {dateFilter !== "all" && (
+              <button onClick={() => setDateFilter("all")} className="px-3 py-1.5 rounded-full text-xs font-medium border bg-white dark:bg-white/5 text-gray-600 border-gray-200 hover:bg-gray-50 flex items-center">
+                <X className="w-3 h-3 mr-1" /> Clear Date
+              </button>
+            )}
+          </div>
+
+          {filters.tags && filters.tags.length > 0 && (
+            <div className="flex items-center space-x-2 overflow-x-auto pb-1">
+              <TagIcon className="w-4 h-4 text-gray-400 shrink-0" />
+              {filters.tags.map((tag) => (
+                <button
+                  key={tag.id}
+                  onClick={() => setTagFilter(tagFilter === tag.name ? "" : tag.name)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border whitespace-nowrap transition-all ${tagFilter === tag.name ? "bg-brand text-white border-brand" : "bg-white dark:bg-white/5 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-white/10"}`}
+                >
+                  {tag.name}
+                </button>
+              ))}
+            </div>
+          )}
+          {hasFilters && (
+            <button onClick={clearFilters} className="flex items-center space-x-1 text-xs text-brand font-medium hover:underline">
+              <X className="w-3 h-3" />
+              <span>Clear all filters</span>
             </button>
           )}
-        </div>
-
-        {filters.tags && filters.tags.length > 0 && (
-          <div className="flex items-center space-x-2 overflow-x-auto pb-1">
-            <TagIcon className="w-4 h-4 text-gray-400 shrink-0" />
-            {filters.tags.map((tag) => (
-              <button
-                key={tag.id}
-                onClick={() => setTagFilter(tagFilter === tag.name ? "" : tag.name)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium border whitespace-nowrap transition-all ${tagFilter === tag.name ? "bg-brand text-white border-brand" : "bg-white dark:bg-white/5 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-white/10"}`}
-              >
-                {tag.name}
-              </button>
-            ))}
-          </div>
-        )}
-        {hasFilters && (
-          <button onClick={clearFilters} className="flex items-center space-x-1 text-xs text-brand font-medium hover:underline">
-            <X className="w-3 h-3" />
-            <span>Clear all filters</span>
-          </button>
-        )}
-      </FadeIn>
+        </FadeIn>
+      )}
 
       {/* Loading */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20">
           <Loader2 className="w-8 h-8 text-brand animate-spin mb-4" />
-          <p className="text-gray-400 text-sm">Loading your photos...</p>
+          <p className="text-gray-400 text-sm">{showingLocked ? "Loading locked items..." : "Loading your photos..."}</p>
         </div>
       ) : media.length === 0 ? (
         <FadeIn>
           <div className="text-center py-20 px-4">
-            <div className="text-6xl mb-4">📸</div>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-              {hasFilters ? "No media matches your filters" : "No photos yet"}
-            </h3>
-            <p className="text-gray-500 mb-6 max-w-sm mx-auto">
-              {hasFilters
-                ? "Try removing some filters to see more results."
-                : "Upload your favourite photos and videos here!"}
-            </p>
-            {!hasFilters && (
-              <button
-                onClick={openUploadModal}
-                className="inline-flex items-center space-x-2 px-6 py-3 bg-brand hover:bg-brand-dark text-white rounded-xl font-semibold shadow-md shadow-brand/20 transition-all"
-              >
-                <UploadCloud className="w-5 h-5" />
-                <span>Upload Photos</span>
-              </button>
+            {showingLocked ? (
+              <>
+                <div className="w-16 h-16 bg-amber-100 dark:bg-amber-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <LockKeyhole className="w-8 h-8 text-amber-500" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No locked items</h3>
+                <p className="text-gray-500 mb-6 max-w-sm mx-auto">
+                  Select photos from your gallery and lock them to keep them private.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="text-6xl mb-4">&#x1F4F8;</div>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                  {hasFilters ? "No media matches your filters" : "No photos yet"}
+                </h3>
+                <p className="text-gray-500 mb-6 max-w-sm mx-auto">
+                  {hasFilters
+                    ? "Try removing some filters to see more results."
+                    : "Upload your favourite photos and videos here!"}
+                </p>
+                {!hasFilters && (
+                  <button
+                    onClick={openUploadModal}
+                    className="inline-flex items-center space-x-2 px-6 py-3 bg-brand hover:bg-brand-dark text-white rounded-xl font-semibold shadow-md shadow-brand/20 transition-all"
+                  >
+                    <UploadCloud className="w-5 h-5" />
+                    <span>Upload Photos</span>
+                  </button>
+                )}
+              </>
             )}
           </div>
         </FadeIn>
@@ -398,41 +789,7 @@ export default function GalleryPage() {
                 <StaggeredList className="columns-2 lg:columns-3 xl:columns-4 gap-3 space-y-3" staggerDelay={0.04}>
                   {grouped[monthKey].map((item) => (
                     <StaggeredItem key={item.id} className="break-inside-avoid">
-                      <button
-                        onClick={() => {
-                          if (selectionMode) {
-                            setSelectedIds(prev => prev.includes(item.id) ? prev.filter(id => id !== item.id) : [...prev, item.id]);
-                          } else {
-                            setLightboxItem(item);
-                          }
-                        }}
-                        className={`group block relative rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all cursor-pointer bg-gray-100 dark:bg-white/5 w-full min-h-[140px] ${selectedIds.includes(item.id) ? "ring-4 ring-brand scale-[0.98]" : ""}`}
-                      >
-                        {isVideoUrl(item.fileUrl) ? (
-                          <video src={item.fileUrl} className="w-full h-auto object-cover" muted preload="metadata" />
-                        ) : (
-                          <img src={item.fileUrl} alt={item.entry.title || "Memory"} className="w-full h-auto object-cover transform group-hover:scale-105 transition-transform duration-500" loading="lazy" />
-                        )}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3">
-                          <p className="text-white text-sm font-bold truncate mb-1">
-                            {item.entry.title || new Date(item.entry.entryDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                          </p>
-                          <div className="flex items-center space-x-2 text-[10px] text-white/80">
-                            {item.entry.tags.slice(0, 2).map((t) => (
-                              <span key={t.id} className="bg-white/20 px-1.5 py-0.5 rounded backdrop-blur-sm">{t.name}</span>
-                            ))}
-                          </div>
-                        </div>
-                        {selectionMode && (
-                          <div className="absolute top-3 left-3 z-10">
-                            {selectedIds.includes(item.id) ? (
-                              <CheckCircle2 className="w-6 h-6 text-brand bg-white rounded-full" />
-                            ) : (
-                              <Circle className="w-6 h-6 text-white/70 bg-black/20 rounded-full" />
-                            )}
-                          </div>
-                        )}
-                      </button>
+                      {renderMediaCard(item, "masonry")}
                     </StaggeredItem>
                   ))}
                 </StaggeredList>
@@ -440,34 +797,7 @@ export default function GalleryPage() {
                 <StaggeredList className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3" staggerDelay={0.04}>
                   {grouped[monthKey].map((item) => (
                     <StaggeredItem key={item.id}>
-                      <button
-                        onClick={() => {
-                          if (selectionMode) {
-                            setSelectedIds(prev => prev.includes(item.id) ? prev.filter(id => id !== item.id) : [...prev, item.id]);
-                          } else {
-                            setLightboxItem(item);
-                          }
-                        }}
-                        className={`group block relative rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all cursor-pointer aspect-square bg-gray-100 dark:bg-white/5 w-full ${selectedIds.includes(item.id) ? "ring-4 ring-brand scale-[0.98]" : ""}`}
-                      >
-                        {isVideoUrl(item.fileUrl) ? (
-                          <video src={item.fileUrl} className="w-full h-full object-cover" muted preload="metadata" />
-                        ) : (
-                          <img src={item.fileUrl} alt={item.entry.title || "Memory"} className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500" loading="lazy" />
-                        )}
-                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2.5 translate-y-full group-hover:translate-y-0 transition-transform duration-300">
-                          <p className="text-white text-xs font-bold truncate">{item.entry.title || "Untitled"}</p>
-                        </div>
-                        {selectionMode && (
-                          <div className="absolute top-2 left-2 z-10">
-                            {selectedIds.includes(item.id) ? (
-                              <CheckCircle2 className="w-5 h-5 text-brand bg-white rounded-full" />
-                            ) : (
-                              <Circle className="w-5 h-5 text-white/70 bg-black/20 rounded-full" />
-                            )}
-                          </div>
-                        )}
-                      </button>
+                      {renderMediaCard(item, "grid")}
                     </StaggeredItem>
                   ))}
                 </StaggeredList>
@@ -528,6 +858,92 @@ export default function GalleryPage() {
         </div>
       )}
 
+      {/* PIN Modal */}
+      {showPinModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowPinModal(false)}>
+          <FadeIn
+            className="bg-white dark:bg-surface rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden"
+            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+          >
+            <div className="p-6 text-center">
+              <div className="w-14 h-14 bg-amber-100 dark:bg-amber-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <LockKeyhole className="w-7 h-7 text-amber-500" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">
+                {pinMode === "verify" ? "Enter Vault PIN" : "Create Vault PIN"}
+              </h2>
+              <p className="text-sm text-gray-500 mb-6">
+                {pinMode === "verify"
+                  ? "Enter your 4-digit PIN to access locked items."
+                  : "Set a 4-digit PIN to protect your locked photos."}
+              </p>
+
+              <div className="space-y-3">
+                <input
+                  ref={pinInputRef}
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={4}
+                  placeholder="Enter 4-digit PIN"
+                  value={pinValue}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/\D/g, "").slice(0, 4);
+                    setPinValue(v);
+                    setPinError("");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      if ((pinMode === "setup" || pinMode === "setup-then-lock") && !pinConfirm) return;
+                      handlePinSubmit();
+                    }
+                  }}
+                  className="w-full text-center text-2xl tracking-[0.5em] px-4 py-3 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand text-gray-900 dark:text-white"
+                />
+
+                {(pinMode === "setup" || pinMode === "setup-then-lock") && (
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={4}
+                    placeholder="Confirm PIN"
+                    value={pinConfirm}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\D/g, "").slice(0, 4);
+                      setPinConfirm(v);
+                      setPinError("");
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handlePinSubmit();
+                    }}
+                    className="w-full text-center text-2xl tracking-[0.5em] px-4 py-3 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand text-gray-900 dark:text-white"
+                  />
+                )}
+
+                {pinError && (
+                  <p className="text-red-500 text-sm font-medium">{pinError}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="px-6 pb-6 flex space-x-3">
+              <button
+                onClick={() => setShowPinModal(false)}
+                className="flex-1 py-3 border border-gray-200 dark:border-white/10 rounded-xl font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handlePinSubmit}
+                disabled={pinValue.length !== 4 || pinLoading}
+                className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold shadow-md transition-all disabled:opacity-50 text-sm"
+              >
+                {pinLoading ? "Verifying..." : pinMode === "verify" ? "Unlock" : "Set PIN"}
+              </button>
+            </div>
+          </FadeIn>
+        </div>
+      )}
+
       {/* Upload Modal */}
       {showUpload && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowUpload(false)}>
@@ -562,26 +978,48 @@ export default function GalleryPage() {
 
               {/* Preview */}
               {uploadUrls.length > 0 && (
-                <div className="grid grid-cols-4 gap-2">
-                  {uploadUrls.map((url, i) => (
-                    <div key={i} className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 group">
-                      {isVideoUrl(url) ? (
-                        <video src={url} className="w-full h-full object-cover" muted preload="metadata" />
-                      ) : (
-                        <img src={url} alt="preview" className="w-full h-full object-cover" />
-                      )}
-                      <button
-                        onClick={() => removeUploadUrl(i)}
-                        className="absolute top-1.5 right-1.5 p-1 bg-black/50 hover:bg-black/70 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {uploadUrls.map((item, i) => (
+                    <div key={i} className="flex flex-col space-y-2 bg-gray-50 dark:bg-white/5 p-3 rounded-xl border border-gray-100 dark:border-white/10 relative group">
+                      <div className="relative aspect-video rounded-lg overflow-hidden bg-gray-100">
+                        {isVideoUrl(item.url) ? (
+                          <video src={item.url} className="w-full h-full object-cover" muted preload="metadata" />
+                        ) : (
+                          <img src={item.url} alt="preview" className="w-full h-full object-cover" />
+                        )}
+                        <button
+                          onClick={() => removeUploadUrl(i)}
+                          className="absolute top-1.5 right-1.5 p-1 bg-black/50 hover:bg-black/70 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Title (optional)"
+                        value={item.title}
+                        onChange={(e) => {
+                          const newUrls = [...uploadUrls];
+                          newUrls[i].title = e.target.value;
+                          setUploadUrls(newUrls);
+                        }}
+                        className="w-full px-3 py-2 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand text-gray-900 dark:text-white"
+                      />
+                      <textarea
+                        placeholder="Description (optional)"
+                        rows={2}
+                        value={item.description}
+                        onChange={(e) => {
+                          const newUrls = [...uploadUrls];
+                          newUrls[i].description = e.target.value;
+                          setUploadUrls(newUrls);
+                        }}
+                        className="w-full px-3 py-2 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand text-gray-900 dark:text-white resize-none"
+                      />
                     </div>
                   ))}
                 </div>
               )}
-
-
 
               {/* Date */}
               <div>
@@ -636,14 +1074,16 @@ export default function GalleryPage() {
       )}
 
       {/* FAB - mobile */}
-      <div className="fixed bottom-24 right-5 z-[60] lg:hidden">
-        <button
-          onClick={openUploadModal}
-          className="w-14 h-14 bg-brand hover:bg-brand-dark text-white rounded-full flex items-center justify-center shadow-lg shadow-brand/30 transition-transform active:scale-95"
-        >
-          <UploadCloud className="w-6 h-6" />
-        </button>
-      </div>
+      {!showingLocked && (
+        <div className="fixed bottom-24 right-5 z-[60] lg:hidden">
+          <button
+            onClick={openUploadModal}
+            className="w-14 h-14 bg-brand hover:bg-brand-dark text-white rounded-full flex items-center justify-center shadow-lg shadow-brand/30 transition-transform active:scale-95"
+          >
+            <UploadCloud className="w-6 h-6" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

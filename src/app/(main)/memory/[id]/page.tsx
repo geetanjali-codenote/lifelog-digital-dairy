@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ChevronLeft, MoreHorizontal, Calendar, Sparkles, Heart, Wallet, Image as ImageIcon, Edit3, Trash2, TrendingUp, TrendingDown } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, MoreHorizontal, Calendar, Sparkles, Heart, Wallet, Image as ImageIcon, Edit3, Trash2, TrendingUp, TrendingDown } from "lucide-react";
 import { FadeIn } from "@/components/motion/FadeIn";
 import toast from "react-hot-toast";
 
@@ -27,7 +27,7 @@ interface MemoryDetail {
   expense: number | null;
   createdAt: string;
   tags: { id: string; name: string; color: string | null }[];
-  attachments: { id: string; fileUrl: string }[];
+  attachments: { id: string; fileUrl: string; title: string | null; description: string | null }[];
   transactions: TransactionData[];
 }
 
@@ -53,6 +53,7 @@ export default function MemoryDetailPage() {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (params.id) {
@@ -231,9 +232,18 @@ export default function MemoryDetailPage() {
                   <h2 className="text-lg font-bold text-gray-900">Gallery</h2>
                 </div>
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                  {memory.attachments.map((att) => (
-                    <div key={att.id} className="w-full aspect-square rounded-2xl overflow-hidden shadow-sm">
-                      <img src={att.fileUrl} alt="Attachment" className="w-full h-full object-cover hover:scale-105 transition-transform duration-300" />
+                  {memory.attachments.map((att, i) => (
+                    <div key={att.id} onClick={() => setLightboxIndex(i)} className="w-full aspect-square rounded-2xl overflow-hidden shadow-sm cursor-pointer relative group">
+                      {/\.(mp4|webm|ogg|mov)(\?|$)/i.test(att.fileUrl) ? (
+                        <video src={att.fileUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" muted />
+                      ) : (
+                        <img src={att.fileUrl} alt="Attachment" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                      )}
+                      {att.title && (
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3 translate-y-full group-hover:translate-y-0 transition-transform duration-300">
+                          <p className="text-white text-xs font-bold truncate">{att.title}</p>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -329,6 +339,57 @@ export default function MemoryDetailPage() {
           </div>
         </FadeIn>
       </div>
+
+      {/* Lightbox */}
+      {lightboxIndex !== null && memory && memory.attachments[lightboxIndex] && (
+        <div className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center" onClick={() => setLightboxIndex(null)}>
+          <button className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors z-[70]">
+            <X className="w-6 h-6" />
+          </button>
+
+          {memory.attachments.length > 1 && (
+            <>
+              <button
+                onClick={(e) => { e.stopPropagation(); setLightboxIndex((prev) => (prev! > 0 ? prev! - 1 : memory.attachments.length - 1)); }}
+                className="absolute left-6 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors z-[70]"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setLightboxIndex((prev) => (prev! < memory.attachments.length - 1 ? prev! + 1 : 0)); }}
+                className="absolute right-6 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors z-[70]"
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+            </>
+          )}
+
+          <div className="max-w-5xl w-full max-h-[90vh] flex flex-col items-center px-16" onClick={(e) => e.stopPropagation()}>
+            <div className="relative w-full flex justify-center items-center h-[70vh]">
+              {/\.(mp4|webm|ogg|mov)(\?|$)/i.test(memory.attachments[lightboxIndex].fileUrl) ? (
+                <video src={memory.attachments[lightboxIndex].fileUrl} controls className="max-w-full max-h-full rounded-lg shadow-2xl" />
+              ) : (
+                <img src={memory.attachments[lightboxIndex].fileUrl} alt="Memory Attachment" className="max-w-full max-h-full rounded-lg shadow-2xl object-contain" />
+              )}
+            </div>
+
+            {(memory.attachments[lightboxIndex].title || memory.attachments[lightboxIndex].description) && (
+              <div className="mt-6 text-center text-white max-w-2xl bg-black/50 p-4 rounded-xl backdrop-blur-sm border border-white/10">
+                {memory.attachments[lightboxIndex].title && (
+                  <h3 className="text-xl font-bold mb-2">{memory.attachments[lightboxIndex].title}</h3>
+                )}
+                {memory.attachments[lightboxIndex].description && (
+                  <p className="text-white/80 text-sm leading-relaxed whitespace-pre-wrap">{memory.attachments[lightboxIndex].description}</p>
+                )}
+              </div>
+            )}
+
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/50 text-sm font-medium tracking-widest">
+              {lightboxIndex + 1} / {memory.attachments.length}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirm Modal */}
       {showDeleteConfirm && (

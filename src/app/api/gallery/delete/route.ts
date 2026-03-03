@@ -19,8 +19,13 @@ export async function POST(request: NextRequest) {
         id: { in: data.mediaIds },
         entry: { userId },
       },
-      select: { id: true },
+      select: { id: true, isLocked: true },
     });
+
+    const lockedItems = attachments.filter(a => a.isLocked);
+    if (lockedItems.length > 0) {
+      return NextResponse.json({ error: "Cannot delete locked items. Unlock them first." }, { status: 403 });
+    }
 
     const validIds = attachments.map(a => a.id);
 

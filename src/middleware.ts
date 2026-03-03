@@ -23,26 +23,30 @@ function isProtectedRoute(pathname: string): boolean {
 }
 
 export default async function middleware(request: NextRequest) {
-  const cookieNames = [...request.cookies.getAll()].map((c) => c.name)
+  const cookies = request.cookies.getAll()
+  const cookieNames = cookies.map((c) => c.name)
 
-  // Detect chunked next-auth session cookies and clear them.
-  // This fixes HTTP 431 errors caused by bloated JWT cookies from
-  // OAuth sign-ins that stored the full token payload.
+  // Detect leftover chunked session cookies (e.g. next-auth.session-token.0, .1)
+  // from previous OAuth sign-ins with bloated JWT payloads.
+  // These corrupt getToken() because SessionStore concatenates all matching
+  // cookie values — mixing the valid main token with stale chunks.
   const chunkedCookies = cookieNames.filter(
     (name) =>
       name.startsWith("next-auth.session-token.") ||
       name.startsWith("__Secure-next-auth.session-token.")
   )
 
-  if (chunkedCookies.length >= 2) {
-    const response = NextResponse.redirect(new URL("/dashboard", request.url))
+  const hasMainCookie =
+    cookieNames.includes("next-auth.session-token") ||
+    cookieNames.includes("__Secure-next-auth.session-token")
 
+  // Only clean up chunks when a valid main (non-chunked) session cookie exists.
+  // This means the chunks are stale leftovers — delete them and retry the request.
+  if (chunkedCookies.length > 0 && hasMainCookie) {
+    const response = NextResponse.redirect(request.url)
     for (const name of chunkedCookies) {
       response.cookies.delete(name)
     }
-    response.cookies.delete("next-auth.session-token")
-    response.cookies.delete("__Secure-next-auth.session-token")
-
     return response
   }
 

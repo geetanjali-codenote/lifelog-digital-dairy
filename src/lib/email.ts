@@ -4,28 +4,38 @@ export async function sendPasswordResetEmail(email: string, token: string) {
   const appUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
   const resetLink = `${appUrl}/reset-password?token=${token}&email=${encodeURIComponent(email)}`;
 
-  if (process.env.NODE_ENV === 'development') {
+  const smtpHost = process.env.SMTP_HOST || process.env.EMAIL_SERVER_HOST;
+  const smtpPort = Number(process.env.SMTP_PORT || process.env.EMAIL_SERVER_PORT) || 587;
+  const smtpUser = process.env.SMTP_USER || process.env.EMAIL_SERVER_USER;
+  const smtpPass = process.env.SMTP_PASSWORD || process.env.EMAIL_SERVER_PASSWORD;
+  const smtpConfigured = smtpHost && smtpUser && smtpPass;
+
+  // In dev mode or when SMTP is not configured, log to console
+  const isDev = process.env.NODE_ENV === 'development' || appUrl.includes('localhost');
+  if (isDev || !smtpConfigured) {
     console.log('\n======================================================');
-    console.log(`[DEV MODE] Simulated Password Reset Email`);
+    console.log(`[DEV MODE] Password Reset Email`);
     console.log(`To: ${email}`);
-    console.log(`Subject: Reset your LifeLog Password`);
     console.log(`Reset Link: ${resetLink}`);
+    if (!smtpConfigured) {
+      console.log(`(SMTP not configured — email not sent)`);
+    }
     console.log('======================================================\n');
-    return;
+    return { resetLink };
   }
 
   // Production sending
   const transporter = nodemailer.createTransport({
-    host: process.env.EMAIL_SERVER_HOST,
-    port: Number(process.env.EMAIL_SERVER_PORT) || 587,
+    host: smtpHost,
+    port: smtpPort,
     auth: {
-      user: process.env.EMAIL_SERVER_USER,
-      pass: process.env.EMAIL_SERVER_PASSWORD,
+      user: smtpUser,
+      pass: smtpPass,
     },
   });
 
   await transporter.sendMail({
-    from: process.env.EMAIL_FROM || '"LifeLog" <noreply@lifelog.app>',
+    from: process.env.EMAIL_FROM || `"LifeLog" <${smtpUser}>`,
     to: email,
     subject: 'Reset your LifeLog Password',
     html: `
@@ -43,4 +53,6 @@ export async function sendPasswordResetEmail(email: string, token: string) {
       </div>
     `,
   });
+
+  return { resetLink };
 }
