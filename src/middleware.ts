@@ -41,9 +41,9 @@ export default async function middleware(request: NextRequest) {
     cookieNames.includes("__Secure-next-auth.session-token")
 
   // Only clean up chunks when a valid main (non-chunked) session cookie exists.
-  // This means the chunks are stale leftovers — delete them and retry the request.
+  // This means the chunks are stale leftovers — delete them silently without redirect.
   if (chunkedCookies.length > 0 && hasMainCookie) {
-    const response = NextResponse.redirect(request.url)
+    const response = NextResponse.next()
     for (const name of chunkedCookies) {
       response.cookies.delete(name)
     }
@@ -78,5 +78,6 @@ export const config = {
     "/highlights/:path*",
     "/gallery/:path*",
     "/insights/:path*",
+    "/(main)/:path*",
   ],
 }
