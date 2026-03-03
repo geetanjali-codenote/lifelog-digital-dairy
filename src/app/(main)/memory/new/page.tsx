@@ -98,7 +98,16 @@ export default function NewEntryPage() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/tags").then((r) => r.json()).then(setTags).catch(() => { });
+    const controller = new AbortController();
+    fetch("/api/tags", { signal: controller.signal })
+      .then((r) => r.json())
+      .then(setTags)
+      .catch((err) => {
+        if (err.name !== "AbortError") {
+          console.error("Failed to load tags");
+        }
+      });
+    return () => controller.abort();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -286,45 +295,13 @@ export default function NewEntryPage() {
               {/* Mood */}
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-3">
-                  What&apos;s your mood? Tell us! <span className="text-gray-400 text-xs">(Optional)</span>
+                  How are you feeling? <span className="text-gray-400 text-xs">(Optional)</span>
                 </label>
 
-                {/* Selected mood display */}
-                {form.mood && (
-                  <div className="flex items-center space-x-3 mb-3">
-                    <div className="relative">
-                      <button
-                        ref={moodPickerBtnRef}
-                        type="button"
-                        onClick={() => setShowMoodPicker(!showMoodPicker)}
-                        className="w-14 h-14 flex items-center justify-center text-3xl bg-brand-light/50 border-2 border-brand rounded-2xl hover:scale-105 transition-all"
-                      >
-                        {moodEmoji}
-                      </button>
-                      {showMoodPicker && (
-                        <div className="absolute top-16 left-0 z-50">
-                          <EmojiPicker
-                            onSelect={(emoji) => {
-                              setMoodEmoji(emoji);
-                              const moodName = getMoodFromEmoji(emoji);
-                              setForm((prev) => ({ ...prev, mood: moodName }));
-                              setShowMoodPicker(false);
-                            }}
-                            onClose={() => setShowMoodPicker(false)}
-                          />
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900 capitalize">{form.mood}</p>
-                      <p className="text-xs text-gray-400">Tap emoji to change</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Quick mood chips */}
+                {/* Simple mood grid */}
                 <div className="space-y-3">
-                  <div className="flex flex-wrap gap-1.5">
+                  {/* Preset moods */}
+                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                     {[...defaultMoods, ...customMoods].map((mood) => (
                       <button
                         key={mood.value}
@@ -333,25 +310,29 @@ export default function NewEntryPage() {
                           setForm({ ...form, mood: mood.value });
                           setMoodEmoji(mood.emoji);
                         }}
-                        className={`flex items-center space-x-1 px-2.5 py-1.5 rounded-full border text-xs font-medium transition-all ${form.mood === mood.value
-                          ? "border-brand bg-brand-light/50 text-brand"
-                          : "border-gray-100 text-gray-500 hover:border-gray-200"
-                          }`}
+                        className={`flex flex-col items-center justify-center py-3 px-2 rounded-xl border-2 transition-all ${
+                          form.mood === mood.value
+                            ? "border-brand bg-brand-light/50"
+                            : "border-gray-200 hover:border-gray-300 bg-white"
+                        }`}
+                        title={mood.label}
                       >
-                        <span>{mood.emoji}</span>
-                        <span>{mood.label}</span>
+                        <span className="text-2xl mb-1">{mood.emoji}</span>
+                        <span className="text-[10px] font-medium text-gray-600 text-center line-clamp-2">
+                          {mood.label}
+                        </span>
                       </button>
                     ))}
                   </div>
 
-                  {/* Add custom mood input */}
+                  {/* Add custom mood */}
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={newMoodInput}
                       onChange={(e) => setNewMoodInput(e.target.value)}
                       placeholder="Add custom mood (e.g., 'inspired')"
-                      className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
+                      className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
@@ -367,6 +348,7 @@ export default function NewEntryPage() {
                             setForm({ ...form, mood: newMood.value });
                             setMoodEmoji("✨");
                             setNewMoodInput("");
+                            toast.success("Mood added!");
                           }
                         }
                       }}
@@ -386,11 +368,12 @@ export default function NewEntryPage() {
                           setForm({ ...form, mood: newMood.value });
                           setMoodEmoji("✨");
                           setNewMoodInput("");
+                          toast.success("Mood added!");
                         }
                       }}
-                      className="px-4 py-2 bg-brand text-white rounded-lg text-xs font-medium hover:bg-brand-dark transition-colors"
+                      className="px-4 py-2 bg-brand text-white rounded-lg text-sm font-medium hover:bg-brand-dark transition-colors"
                     >
-                      <Plus className="w-4 h-4" />
+                      Add
                     </button>
                   </div>
                 </div>
